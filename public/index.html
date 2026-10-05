@@ -106,9 +106,19 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 
 #auth{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #auth button{padding:3px 8px;font-size:12px}
-#auth-form{display:flex;gap:6px;align-items:center}
-#auth-form[hidden]{display:none}
-#auth-pw{font:12px var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:4px 6px;width:130px}
+#auth form{margin:0}
+#users{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;max-width:300px}
+#users ul{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:4px;max-height:160px;overflow:auto}
+#users li{display:flex;gap:8px;align-items:center;justify-content:space-between}
+#users li span{color:var(--muted)}
+#users li b{font-family:var(--mono);font-weight:500;overflow-wrap:anywhere}
+#users li button{padding:2px 8px;font-size:12px}
+#users-form{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
+#users-form label{color:var(--muted)}
+#users-form input,#users-form select{font:13px var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;min-width:0;width:100%;box-sizing:border-box}
+#users-form .actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+#users :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#users-msg{margin:8px 0 0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -124,14 +134,20 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
       <div class="issue">Issue 8 · 30 Sep 2026 · 1 grid square = 3 m</div>
       <div class="issue" id="conn" role="status"></div>
       <div class="issue" id="auth">
-        <button type="button" id="auth-btn">Editor sign in</button>
-        <form id="auth-form" hidden>
-          <label for="auth-pw" class="sr">Team password</label>
-          <input id="auth-pw" type="password" autocomplete="current-password" placeholder="Team password">
-          <button type="submit">Sign in</button>
-        </form>
-        <span id="auth-msg" role="status"></span>
+        <span id="auth-who"></span>
+        <button type="button" id="users-btn" aria-expanded="false" aria-controls="users" hidden>Logins</button>
+        <form method="post" action="/api/logout"><button type="submit">Sign out</button></form>
       </div>
+      <section id="users" aria-label="Logins" hidden>
+        <ul id="users-list"></ul>
+        <form id="users-form">
+          <label for="u-name">Username</label><input id="u-name" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+          <label for="u-pass">Password</label><input id="u-pass" type="text" minlength="8" maxlength="200" autocomplete="off" spellcheck="false" required>
+          <label for="u-role">Access</label><select id="u-role"><option value="viewer">View only</option><option value="editor">Can edit stands</option></select>
+          <div class="actions"><button type="button" id="u-gen">Suggest password</button><button type="submit" class="primary">Create login</button></div>
+        </form>
+        <p id="users-msg" role="status" hidden></p>
+      </section>
     </header>
     <div class="panel legend" aria-label="Legend">
       <div><span class="sw av"></span>Available <b id="lg-av-m2">474 m²</b> · <b id="lg-av-n">51</b> <span id="lg-av-w">stands</span></div>
@@ -193,12 +209,11 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 <script>
 /* Netlify adapter: gives the page the same saving, sign-in and Claude hooks it uses on claude.ai, backed by /api */
 (function(){
-  const PW_KEY='board-2027-edit-pw'; let pw=null; try{pw=sessionStorage.getItem(PW_KEY);}catch(e){}
   async function api(method,path,body){
     let r;
-    try{ r=await fetch('/api/'+path,{method,headers:Object.assign({'content-type':'application/json'},pw?{'x-edit-password':pw}:{}),body:body===undefined?undefined:JSON.stringify(body)}); }
+    try{ r=await fetch('/api/'+path,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}); }
     catch(e){ throw {code:'unavailable',message:'Network error'}; }
-    if(!r.ok){ let m={}; try{m=await r.json();}catch(e){} throw {code:m.code||(r.status===401?'not_granted':'unavailable'),message:m.message||''}; }
+    if(!r.ok){ let m={}; try{m=await r.json();}catch(e){} throw {status:r.status,code:m.code||(r.status===401?'not_granted':'unavailable'),message:m.message||''}; }
     return r.json();
   }
   const subs=[]; let timer=null, last=null;
@@ -207,7 +222,7 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
     try{ const d=await api('GET','stands'); const s=JSON.stringify(d.stands||{}); if(s===last) return; last=s;
       const docs=Object.entries(d.stands||{}).map(([id,data])=>({id,data:()=>data}));
       subs.forEach(fn=>fn({docs}));
-    }catch(e){}
+    }catch(e){ if(e.status===401) location.reload(); }   // session ended: back to the sign-in page
   }
   const db={
     collection:()=>({onSnapshot(next){ subs.push(next); poll(); if(!timer) timer=setInterval(poll,5000); return ()=>{}; }}),
@@ -216,16 +231,12 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
       delete:async()=>{ await api('DELETE','stands/'+key); poll(); } }; }
   };
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) poll(); });
-  async function check(){ if(!pw) return false; try{ await api('POST','login',{}); return true; }catch(e){ if(e.code==='not_granted'){ pw=null; try{sessionStorage.removeItem(PW_KEY);}catch(x){} } return false; } }
-  const user={can:async()=>check()};
+  let me=null; const whoami=api('GET','me').then(m=>(me=m)).catch(()=>null);
+  const user={can:async()=>{ const m=await whoami; return !!m&&(m.role==='editor'||m.role==='admin'); }};
   const sample=async()=>{ throw {code:'invalid_request'}; };
   sample.json=async prompt=>(await api('POST','design',{prompt})).design;
   window.claude={use:async name=>({db,user,sample})[name]||null};
-  window.__editor={
-    signIn:async p=>{ pw=p; if(await check()){ try{sessionStorage.setItem(PW_KEY,p);}catch(e){} return true; } pw=null; return false; },
-    signOut(){ pw=null; try{sessionStorage.removeItem(PW_KEY);}catch(e){} },
-    signedIn:()=>!!pw, check
-  };
+  window.__account={whoami, api};
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1254,22 +1265,52 @@ requestAnimationFrame(tick);
 })();
 </script>
 <script>
-/* editor sign-in with the shared team password */
+/* who is signed in, and (for the owner) creating and removing personal logins */
 (function(){
-  const btn=document.getElementById('auth-btn'), form=document.getElementById('auth-form'), input=document.getElementById('auth-pw'), msg=document.getElementById('auth-msg');
-  function show(){ const on=window.__editor.signedIn(); btn.textContent=on?'Sign out':'Editor sign in'; if(on) form.hidden=true; }
-  btn.addEventListener('click',()=>{
-    if(window.__editor.signedIn()){ window.__editor.signOut(); window.__setEditor(false); msg.textContent=''; show(); return; }
-    form.hidden=!form.hidden; if(!form.hidden) input.focus();
+  const who=document.getElementById('auth-who'), btn=document.getElementById('users-btn'), panel=document.getElementById('users'),
+        list=document.getElementById('users-list'), form=document.getElementById('users-form'), msg=document.getElementById('users-msg'),
+        nameEl=document.getElementById('u-name'), passEl=document.getElementById('u-pass'), roleEl=document.getElementById('u-role');
+  const api=window.__account.api;
+  const say=t=>{ msg.textContent=t||''; msg.hidden=!t; };
+  const roleText={admin:'Owner',editor:'Editor',viewer:'View only'};
+  window.__account.whoami.then(me=>{
+    if(!me){ who.textContent=''; return; }
+    who.textContent=(me.user?me.user+' · ':'')+(roleText[me.role]||'');
+    btn.hidden=me.role!=='admin';
+  });
+  async function load(){
+    list.textContent='';
+    try{
+      const {users}=await api('GET','users');
+      if(!users.length){ const li=document.createElement('li'); const s=document.createElement('span'); s.textContent='No personal logins yet.'; li.appendChild(s); list.appendChild(li); return; }
+      users.forEach(u=>{
+        const li=document.createElement('li'), b=document.createElement('b'), s=document.createElement('span'), x=document.createElement('button');
+        b.textContent=u.name; s.textContent=u.role==='editor'?'Editor':'View only'; x.type='button'; x.textContent='Remove';
+        x.addEventListener('click',async()=>{
+          if(x.dataset.armed!=='1'){ x.dataset.armed='1'; x.textContent='Confirm remove'; return; }
+          x.disabled=true;
+          try{ await api('DELETE','users/'+encodeURIComponent(u.name)); say('Removed '+u.name+'.'); load(); }
+          catch(e){ say('Couldn’t remove that login. Try again.'); x.disabled=false; }
+        });
+        li.append(b,s,x); list.appendChild(li);
+      });
+    }catch(e){ say('Couldn’t load the logins.'); }
+  }
+  btn.addEventListener('click',()=>{ const open=panel.hidden; panel.hidden=!open; btn.setAttribute('aria-expanded',open); btn.classList.toggle('on',open); if(open){ say(''); load(); } });
+  document.getElementById('u-gen').addEventListener('click',()=>{
+    const words='amber birch cedar delta ember fjord glade harbor indigo juniper kestrel linden maple nectar orchid pebble quartz river saffron thistle umber violet willow zephyr'.split(' ');
+    const r=new Uint32Array(4); crypto.getRandomValues(r);
+    passEl.value=words[r[0]%words.length]+'-'+words[r[1]%words.length]+'-'+words[r[2]%words.length]+'-'+(100+r[3]%900);
   });
   form.addEventListener('submit',async e=>{
-    e.preventDefault(); msg.textContent='Checking…';
-    const ok=await window.__editor.signIn(input.value); input.value='';
-    msg.textContent=ok?'':'That password didn’t work.';
-    if(ok) window.__setEditor(true);
-    show();
+    e.preventDefault(); say('Creating…');
+    const username=nameEl.value.trim().toLowerCase(), password=passEl.value;
+    try{
+      const r=await api('POST','users',{username,password,role:roleEl.value});
+      say('Login created. Send them the site address, the username “'+r.name+'” and the password “'+password+'”. The password can’t be shown again.');
+      nameEl.value=''; passEl.value=''; load();
+    }catch(err){ say(err.message||'Couldn’t create that login. Try again.'); }
   });
-  window.__editor.check().then(show);
 })();
 </script>
 </body>
