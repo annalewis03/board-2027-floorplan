@@ -9,6 +9,7 @@
 //   GET    /api/users         owner: list personal logins
 //   POST   /api/users         owner: create or replace a login
 //   DELETE /api/users/:name   owner: remove a login
+//   GET/POST/DELETE /api/guest owner: see, set or turn off the guest password
 // Settings (Netlify > Environment variables):
 //   EDIT_PASSWORD      required. The owner password: full access, manages logins. Also signs sessions.
 //   VIEW_PASSWORD      optional. A shared view-only password. Delete it to allow personal logins only.
@@ -22,6 +23,7 @@ export const config = { path: "/api/*" };
 const STORE = "board-2027";
 const BLOB = "stands";
 const USERS = "users";
+const GUEST = "guest";
 const KEY_RE = /^[A-Z]\d{2}(-\d{2})?$/;
 const USER_RE = /^[a-z0-9][a-z0-9._-]{1,31}$/;
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
@@ -202,8 +204,8 @@ const sessionKey = () => createHash("sha256").update("floorplan-session:" + (pro
 const hashPassword = (password, salt, rounds) => pbkdf2Sync(password, salt, rounds, 32, "sha256");
 const cookie = (value, maxAge) => `fp_session=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 
-function signSession(user, role) {
-  const body = b64u(JSON.stringify({ u: user, r: role, e: Math.floor(Date.now() / 1000) + SESSION_SECONDS }));
+function signSession(user, role, guest) {
+  const body = b64u(JSON.stringify({ u: user, r: role, g: guest || undefined, e: Math.floor(Date.now() / 1000) + SESSION_SECONDS }));
   return body + "." + b64u(createHmac("sha256", sessionKey()).update(body).digest());
 }
 
@@ -219,12 +221,13 @@ function readSession(req) {
     if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
     const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
     if (typeof p.e !== "number" || p.e <= Date.now() / 1000) return null;
-    return { user: typeof p.u === "string" ? p.u : null, role: p.r };
+    return { user: typeof p.u === "string" ? p.u : null, role: p.r, guest: typeof p.g === "string" ? p.g : null };
   } catch {
     return null;
   }
 }
 
+const getGuest = async (store) => (await store.get(GUEST, { type: "json", consistency: "strong" })) || null;
 const getUsers = async (store) => (await store.get(USERS, { type: "json", consistency: "strong" })) || {};
 
 // Who is asking. A personal login is re-checked against the saved logins on every request,
@@ -232,6 +235,11 @@ const getUsers = async (store) => (await store.get(USERS, { type: "json", consis
 async function identify(req, store) {
   const s = readSession(req);
   if (!s) return null;
+  if (s.guest) {
+    // a guest session ends as soon as the owner changes or turns off the guest password
+    const g = await getGuest(store);
+    return g && g.updated === s.guest ? { user: null, role: "viewer", guest: true } : null;
+  }
   if (s.user === null) return s.role === "admin" || s.role === "viewer" ? { user: null, role: s.role } : null;
   const u = (await getUsers(store))[s.user];
   return u ? { user: s.user, role: u.role === "editor" ? "editor" : "viewer" } : null;
@@ -244,6 +252,12 @@ async function checkLogin(store, username, password) {
   if (!name) {
     if (same(password, edit)) return { user: null, role: "admin" };
     if (view && same(password, view)) return { user: null, role: "viewer" };
+    const g = await getGuest(store);
+    if (g) {
+      const got = hashPassword(password, Buffer.from(g.salt, "base64"), g.rounds || PBKDF2_ROUNDS);
+      const want = Buffer.from(g.hash, "base64");
+      if (got.length === want.length && timingSafeEqual(got, want)) return { user: null, role: "viewer", guest: g.updated };
+    }
     return null;
   }
   if (!USER_RE.test(name)) return null;
@@ -315,7 +329,7 @@ export default async (req) => {
         await new Promise((r) => setTimeout(r, 500)); // slow down guessing
         return redirect("/?login=failed");
       }
-      return redirect("/", { "set-cookie": cookie(signSession(who.user, who.role), SESSION_SECONDS) });
+      return redirect("/", { "set-cookie": cookie(signSession(who.user, who.role, who.guest), SESSION_SECONDS) });
     }
     if (resource === "logout" && req.method === "POST") return redirect("/", { "set-cookie": cookie("", 0) });
 
@@ -329,7 +343,7 @@ export default async (req) => {
     }
     const canEdit = me.role === "editor" || me.role === "admin";
 
-    if (resource === "me" && req.method === "GET") return json({ user: me.user, role: me.role });
+    if (resource === "me" && req.method === "GET") return json({ user: me.user, role: me.role, guest: !!me.guest });
     if (resource === "stands" && !key && req.method === "GET") return json({ stands: await readStands(store) });
 
     if (resource === "stands" && key && (req.method === "PUT" || req.method === "DELETE")) {
@@ -354,6 +368,27 @@ export default async (req) => {
       const prompt = body && typeof body.prompt === "string" ? body.prompt : "";
       if (!prompt || prompt.length > 12000) return fail(400, "invalid_argument", "Bad prompt");
       return await design(prompt);
+    }
+
+    if (resource === "guest" && !key) {
+      if (me.role !== "admin") return fail(403, "not_granted", "Owner only");
+      if (req.method === "GET") {
+        const g = await getGuest(store);
+        return json({ set: !!g, updated: g ? g.updated : null });
+      }
+      if (req.method === "POST") {
+        const body = await req.json().catch(() => null);
+        const password = body && typeof body.password === "string" ? body.password : "";
+        if (password.length < 8 || password.length > 200) return fail(400, "invalid_argument", "Password: at least 8 characters");
+        if (same(password, process.env.EDIT_PASSWORD || "")) return fail(400, "invalid_argument", "The guest password can't be the same as the owner password");
+        const salt = randomBytes(16), updated = new Date().toISOString();
+        await store.setJSON(GUEST, { salt: salt.toString("base64"), hash: hashPassword(password, salt, PBKDF2_ROUNDS).toString("base64"), rounds: PBKDF2_ROUNDS, updated });
+        return json({ ok: true, updated });
+      }
+      if (req.method === "DELETE") {
+        await store.delete(GUEST);
+        return json({ ok: true });
+      }
     }
 
     if (resource === "users") {

@@ -32,7 +32,10 @@ Redeploy after changing any of these.
 ## Using it
 
 - **Owner:** on the sign-in page, leave the username empty and enter `EDIT_PASSWORD`.
-- **Create a login for someone:** signed in as owner, press **Logins** (top left), enter a
+- **Guest login:** signed in as owner, press **Access** (top left) and set a guest password. Guests
+  sign in with just that password and can only view. Changing the password, or turning the guest
+  login off, signs every guest out straight away.
+- **Create a login for someone:** signed in as owner, press **Access** (top left), and under Personal logins enter a
   username, a password and whether they can edit, then press **Create login**. Send them the
   site address, username and password yourself. Passwords are stored scrambled and can't be shown again.
 - **Reset someone's password:** create the login again with the same username.

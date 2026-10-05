@@ -44,13 +44,19 @@ button{font:inherit;font-weight:600;color:#fff;background:var(--fg);border:0;bor
 @media (prefers-color-scheme:dark){button{color:#141817}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .err{color:var(--accent)}
+details{font-size:13px;color:var(--muted)}
+summary{cursor:pointer}
+details label{margin-top:8px}
 </style></head><body>
 <form method="post" action="/api/session">
   <h1>Board 2027 floorplan</h1>
-  <p>Sign in to view the plan. If you were given only a password, leave the username empty.</p>
-  ${failed ? '<p class="err" role="alert">That username or password didn’t work.</p>' : ""}
-  <label>Username<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
-  <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+  <p>Enter the guest password you were given to view the plan.</p>
+  ${failed ? '<p class="err" role="alert">That password didn’t work. Check it and try again.</p>' : ""}
+  <label>Password<input name="password" type="password" autocomplete="current-password" required autofocus></label>
+  <details>
+    <summary>I have my own username</summary>
+    <label>Username<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+  </details>
   <button type="submit">Sign in</button>
 </form>
 </body></html>`;

@@ -113,10 +113,14 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 #users li span{color:var(--muted)}
 #users li b{font-family:var(--mono);font-weight:500;overflow-wrap:anywhere}
 #users li button{padding:2px 8px;font-size:12px}
-#users-form{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
-#users-form label{color:var(--muted)}
-#users-form input,#users-form select{font:13px var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;min-width:0;width:100%;box-sizing:border-box}
-#users-form .actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+#users h2{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 6px}
+#users h2:not(:first-child){margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+#guest-state{margin:0 0 8px}
+#guest-msg{margin:8px 0 0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+#users-form,#guest-form{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
+#users-form label,#guest-form label{color:var(--muted)}
+#users-form input,#users-form select,#guest-form input{font:13px var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;min-width:0;width:100%;box-sizing:border-box}
+#users-form .actions,#guest-form .actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
 #users :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #users-msg{margin:8px 0 0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -135,10 +139,18 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
       <div class="issue" id="conn" role="status"></div>
       <div class="issue" id="auth">
         <span id="auth-who"></span>
-        <button type="button" id="users-btn" aria-expanded="false" aria-controls="users" hidden>Logins</button>
+        <button type="button" id="users-btn" aria-expanded="false" aria-controls="users" hidden>Access</button>
         <form method="post" action="/api/logout"><button type="submit">Sign out</button></form>
       </div>
-      <section id="users" aria-label="Logins" hidden>
+      <section id="users" aria-label="Access" hidden>
+        <h2>Guest login</h2>
+        <p id="guest-state">Checking…</p>
+        <form id="guest-form">
+          <label for="g-pass">New password</label><input id="g-pass" type="text" minlength="8" maxlength="200" autocomplete="off" spellcheck="false" required>
+          <div class="actions"><button type="button" id="g-gen">Suggest</button><button type="submit" class="primary">Set guest password</button><button type="button" id="g-off" hidden>Turn off guest login</button></div>
+        </form>
+        <p id="guest-msg" role="status" hidden></p>
+        <h2>Personal logins</h2>
         <ul id="users-list"></ul>
         <form id="users-form">
           <label for="u-name">Username</label><input id="u-name" type="text" maxlength="32" autocomplete="off" autocapitalize="none" spellcheck="false" required>
@@ -216,13 +228,16 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
     if(!r.ok){ let m={}; try{m=await r.json();}catch(e){} throw {status:r.status,code:m.code||(r.status===401?'not_granted':'unavailable'),message:m.message||''}; }
     return r.json();
   }
+  // the session was ended (login removed, guest password changed, or expired): clear it and show the sign-in page
+  let ending=false;
+  function ended(){ if(ending) return; ending=true; fetch('/api/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload()); }
   const subs=[]; let timer=null, last=null;
   async function poll(){
     if(document.hidden&&last!==null) return;
     try{ const d=await api('GET','stands'); const s=JSON.stringify(d.stands||{}); if(s===last) return; last=s;
       const docs=Object.entries(d.stands||{}).map(([id,data])=>({id,data:()=>data}));
       subs.forEach(fn=>fn({docs}));
-    }catch(e){ if(e.status===401) location.reload(); }   // session ended: back to the sign-in page
+    }catch(e){ if(e.status===401) ended(); }
   }
   const db={
     collection:()=>({onSnapshot(next){ subs.push(next); poll(); if(!timer) timer=setInterval(poll,5000); return ()=>{}; }}),
@@ -231,7 +246,7 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
       delete:async()=>{ await api('DELETE','stands/'+key); poll(); } }; }
   };
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) poll(); });
-  let me=null; const whoami=api('GET','me').then(m=>(me=m)).catch(()=>null);
+  let me=null; const whoami=api('GET','me').then(m=>(me=m)).catch(e=>{ if(e.status===401) ended(); return null; });
   const user={can:async()=>{ const m=await whoami; return !!m&&(m.role==='editor'||m.role==='admin'); }};
   const sample=async()=>{ throw {code:'invalid_request'}; };
   sample.json=async prompt=>(await api('POST','design',{prompt})).design;
@@ -1275,7 +1290,7 @@ requestAnimationFrame(tick);
   const roleText={admin:'Owner',editor:'Editor',viewer:'View only'};
   window.__account.whoami.then(me=>{
     if(!me){ who.textContent=''; return; }
-    who.textContent=(me.user?me.user+' · ':'')+(roleText[me.role]||'');
+    who.textContent=me.guest?'Guest · View only':(me.user?me.user+' · ':'')+(roleText[me.role]||'');
     btn.hidden=me.role!=='admin';
   });
   async function load(){
@@ -1296,11 +1311,36 @@ requestAnimationFrame(tick);
       });
     }catch(e){ say('Couldn’t load the logins.'); }
   }
-  btn.addEventListener('click',()=>{ const open=panel.hidden; panel.hidden=!open; btn.setAttribute('aria-expanded',open); btn.classList.toggle('on',open); if(open){ say(''); load(); } });
-  document.getElementById('u-gen').addEventListener('click',()=>{
+  btn.addEventListener('click',()=>{ const open=panel.hidden; panel.hidden=!open; btn.setAttribute('aria-expanded',open); btn.classList.toggle('on',open); if(open){ say(''); gsay(''); load(); loadGuest(); } });
+  const suggest=()=>{
     const words='amber birch cedar delta ember fjord glade harbor indigo juniper kestrel linden maple nectar orchid pebble quartz river saffron thistle umber violet willow zephyr'.split(' ');
     const r=new Uint32Array(4); crypto.getRandomValues(r);
-    passEl.value=words[r[0]%words.length]+'-'+words[r[1]%words.length]+'-'+words[r[2]%words.length]+'-'+(100+r[3]%900);
+    return words[r[0]%words.length]+'-'+words[r[1]%words.length]+'-'+words[r[2]%words.length]+'-'+(100+r[3]%900);
+  };
+  document.getElementById('u-gen').addEventListener('click',()=>{ passEl.value=suggest(); });
+
+  // guest login: one shared view-only password that the owner sets here
+  const gState=document.getElementById('guest-state'), gForm=document.getElementById('guest-form'), gPass=document.getElementById('g-pass'),
+        gOff=document.getElementById('g-off'), gMsg=document.getElementById('guest-msg');
+  const gsay=t=>{ gMsg.textContent=t||''; gMsg.hidden=!t; };
+  async function loadGuest(){
+    try{
+      const g=await api('GET','guest');
+      gState.textContent=g.set?'Guest login is on. Password last set '+new Date(g.updated).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+'.':'Guest login is off. Set a password to turn it on.';
+      gOff.hidden=!g.set;
+    }catch(e){ gState.textContent='Couldn’t check the guest login.'; }
+  }
+  document.getElementById('g-gen').addEventListener('click',()=>{ gPass.value=suggest(); });
+  gForm.addEventListener('submit',async e=>{
+    e.preventDefault(); gsay('Saving…'); const password=gPass.value;
+    try{ await api('POST','guest',{password}); gPass.value=''; gsay('Guest password set to “'+password+'”. Share it with the site address; it can’t be shown again. Anyone signed in with the old guest password has been signed out.'); loadGuest(); }
+    catch(err){ gsay(err.message||'Couldn’t set the guest password. Try again.'); }
+  });
+  gOff.addEventListener('click',async()=>{
+    if(gOff.dataset.armed!=='1'){ gOff.dataset.armed='1'; gOff.textContent='Confirm turn off'; return; }
+    gOff.dataset.armed=''; gOff.textContent='Turn off guest login';
+    try{ await api('DELETE','guest'); gsay('Guest login turned off. Guests have been signed out.'); loadGuest(); }
+    catch(err){ gsay('Couldn’t turn off the guest login. Try again.'); }
   });
   form.addEventListener('submit',async e=>{
     e.preventDefault(); say('Creating…');
