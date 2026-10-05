@@ -1,11 +1,60 @@
+// Locks the whole site: the browser asks for a password before any page or data loads.
+// Accepts VIEW_PASSWORD (viewers) or EDIT_PASSWORD (editors). The username box can be left blank.
+// If VIEW_PASSWORD is not set the site stays closed, so a missing setting can never expose it.
+export const config = { path: "/*" };
+
+const ask = (status, text) =>
+  new Response(text, {
+    status,
+    headers: {
+      "www-authenticate": 'Basic realm="Board 2027 floorplan", charset="UTF-8"',
+      "cache-control": "no-store",
+      "content-type": "text/plain; charset=utf-8",
+    },
+  });
+
+async function same(a, b) {
+  const enc = new TextEncoder();
+  const [x, y] = await Promise.all([a, b].map((v) => crypto.subtle.digest("SHA-256", enc.encode(v))));
+  const p = new Uint8Array(x), q = new Uint8Array(y);
+  let diff = 0;
+  for (let i = 0; i < p.length; i++) diff |= p[i] ^ q[i];
+  return diff === 0;
+}
+
+function passwordFrom(req) {
+  const h = req.headers.get("authorization") || "";
+  if (!h.toLowerCase().startsWith("basic ")) return null;
+  try {
+    const bytes = Uint8Array.from(atob(h.slice(6).trim()), (c) => c.charCodeAt(0));
+    const text = new TextDecoder().decode(bytes);
+    const i = text.indexOf(":");
+    return i < 0 ? null : text.slice(i + 1);
+  } catch {
+    return null;
+  }
+}
+
+export default async (req, context) => {
+  const view = Netlify.env.get("VIEW_PASSWORD") || "";
+  const edit = Netlify.env.get("EDIT_PASSWORD") || "";
+  if (!view) return new Response("This site is locked: VIEW_PASSWORD has not been set in Netlify.", { status: 503, headers: { "cache-control": "no-store" } });
+  const given = passwordFrom(req);
+  if (given === null || given === "") return ask(401, "Password required.");
+  const ok = (await same(given, view)) || (edit !== "" && (await same(given, edit)));
+  if (!ok) return ask(401, "Password required.");
+  return context.next();
+};
+
 // Board 2027 floorplan API
-//   GET    /api/stands        everyone: all saved stands
+//   GET    /api/stands        viewers: all saved stands
 //   POST   /api/login         editors: checks the team password
 //   PUT    /api/stands/:key   editors: save one stand
 //   DELETE /api/stands/:key   editors: clear one stand
 //   POST   /api/design        editors: ask Claude for a stand design
 // Settings (Netlify > Site configuration > Environment variables):
-//   EDIT_PASSWORD      required, the shared team password
+//   VIEW_PASSWORD      required, opens the site for viewing
+//   EDIT_PASSWORD      required, the team password for editing
 //   ANTHROPIC_API_KEY  required for "Design with Claude"
 //   CLAUDE_MODEL       optional, defaults to a fast model
 import { getStore } from "@netlify/blobs";
@@ -183,12 +232,31 @@ const json = (body, status = 200) =>
   });
 const fail = (status, code, message) => json({ code, message }, status);
 
+const same = (a, b) => {
+  const h = (v) => createHash("sha256").update(v).digest();
+  return timingSafeEqual(h(a), h(b));
+};
+
 function isEditor(req) {
   const want = process.env.EDIT_PASSWORD || "";
   const got = req.headers.get("x-edit-password") || "";
-  if (!want || !got) return false;
-  const h = (v) => createHash("sha256").update(v).digest();
-  return timingSafeEqual(h(want), h(got));
+  return !!want && !!got && same(want, got);
+}
+
+// Second lock behind the site-wide one in netlify/edge-functions/lock.js: reading bookings also
+// needs the view or edit password, so the data stays private even if that outer lock is removed.
+function isViewer(req) {
+  if (isEditor(req)) return true;
+  const view = process.env.VIEW_PASSWORD || "", edit = process.env.EDIT_PASSWORD || "";
+  const h = req.headers.get("authorization") || "";
+  if (!view || !h.toLowerCase().startsWith("basic ")) return false;
+  let given = "";
+  try {
+    const text = Buffer.from(h.slice(6).trim(), "base64").toString("utf8");
+    const i = text.indexOf(":");
+    given = i < 0 ? "" : text.slice(i + 1);
+  } catch { return false; }
+  return !!given && (same(given, view) || (!!edit && same(given, edit)));
 }
 
 async function readAll(store) {
@@ -239,6 +307,7 @@ export default async (req) => {
   const store = getStore(STORE);
   try {
     if (resource === "stands" && !key && req.method === "GET") {
+      if (!isViewer(req)) return fail(401, "not_granted", "Password required");
       return json({ stands: (await readAll(store)).stands });
     }
     if (!isEditor(req)) return fail(401, "not_granted", "Editor password required");
