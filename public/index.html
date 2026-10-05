@@ -152,6 +152,7 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
       <form id="edit" hidden>
         <label for="f-sponsor">Sponsor</label><input id="f-sponsor" type="text" maxlength="40" autocomplete="off" placeholder="Company name">
         <label for="f-status">Status</label><select id="f-status"><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option></select>
+        <label for="f-size">Size</label><select id="f-size"></select>
         <label for="f-design">Design</label><select id="f-design"></select>
         <div id="ai" hidden>
           <label for="f-brief">Describe the stand for Claude</label>
@@ -469,7 +470,7 @@ addLabel(`Lounge · ${tables.length/2} rounds`,mx(380),3.4,mz(769),{size:1.1});
 });
 
 /* ---------- stands ---------- */
-const stands=[]; const pickables=[];
+const stands=[]; const pickables=[]; const blocks=[];
 const wallsGroup=new THREE.Group(); scene.add(wallsGroup);
 const standLabels=new THREE.Group(); labels.add(standLabels);
 const SHELL_H=2.5, T=.05;
@@ -479,7 +480,7 @@ const SHELL_H=2.5, T=.05;
 function block({cx,cz,ry=0,cols,rows,cw=3,cd=3,zone,prefix,start=1,backWall=null,note,merge=null,face=null}){
   const g=new THREE.Group(); g.position.set(cx,0,cz); g.rotation.y=ry; scene.add(g);
   const W=cols*cw, D=rows*cd, ox=-W/2, oz=-D/2; let n=start;
-  const joined=new Set(); let skip=0;
+  const joined=new Set(), made=[]; let skip=0;
   for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
     if(skip>0){skip--;continue;}
     const span=(merge&&rows===1&&merge[c])||1, sw=cw*span; skip=span-1;
@@ -495,17 +496,32 @@ function block({cx,cz,ry=0,cols,rows,cw=3,cd=3,zone,prefix,start=1,backWall=null
     if(backWall==='top'&&r===0)opens--;
     st.opens=opens; st.key=id.replace('–','-'); st.face=face||(r===0&&backWall!=='top'?'-z':'+z');
     st.open=opens<=1?'Inline · 1 side open':opens===2?'Corner · 2 sides open':opens===3?'Peninsula · 3 sides open':'Island · 4 sides open';
+    st.pick=pick; st.cell={c,r}; made.push(st);
     pick.userData.stand=st; pickables.push(pick); stands.push(st);
     g.updateMatrixWorld();
     const wp=new THREE.Vector3(x,0,z).applyMatrix4(g.matrixWorld);
     const s=label(id,{size:.55}); s.position.set(wp.x,SHELL_H+.7,wp.z); standLabels.add(s); st.center=wp; st.label=s;
   }
-  // shell walls on internal grid lines
   const wg=new THREE.Group(); wg.position.copy(g.position); wg.rotation.copy(g.rotation); wallsGroup.add(wg);
-  for(let c=1;c<cols;c++) if(!joined.has(c)) wg.add(box(T,SHELL_H,D,M.shell,ox+c*cw,SHELL_H/2,0));
-  for(let r=1;r<rows;r++) wg.add(box(W,SHELL_H,T,M.shell,0,SHELL_H/2,oz+r*cd));
-  if(backWall==='top') wg.add(box(W,SHELL_H,T,M.shell,0,SHELL_H/2,oz));
+  // plots can be joined into bigger stands only in blocks made of plain 3 x 3 m plots
+  const b={g,wg,cols,rows,cw,cd,ox,oz,W,D,backWall,joined,stands:made,resizable:!merge&&cw===3&&cd===3&&cols*rows>1};
+  made.forEach(st=>{st.block=b; st.absorbedBy=null; st.rect=null;});
+  blocks.push(b); buildWalls(b);
   return g;
+}
+// shell walls on the grid lines between plots; none between plots joined into one stand
+function buildWalls(b){
+  const {wg,cols,rows,cw,cd,ox,oz,W,D}=b;
+  while(wg.children.length){const m=wg.children[0]; wg.remove(m); m.geometry.dispose();}
+  if(!b.resizable){
+    for(let c=1;c<cols;c++) if(!b.joined.has(c)) wg.add(box(T,SHELL_H,D,M.shell,ox+c*cw,SHELL_H/2,0));
+    for(let r=1;r<rows;r++) wg.add(box(W,SHELL_H,T,M.shell,0,SHELL_H/2,oz+r*cd));
+  } else {
+    const at=(c,r)=>{const st=b.stands.find(x=>x.cell.c===c&&x.cell.r===r); return st.absorbedBy||st;};
+    for(let r=0;r<rows;r++) for(let c=1;c<cols;c++) if(at(c-1,r)!==at(c,r)) wg.add(box(T,SHELL_H,cd,M.shell,ox+c*cw,SHELL_H/2,oz+r*cd+cd/2));
+    for(let r=1;r<rows;r++) for(let c=0;c<cols;c++) if(at(c,r-1)!==at(c,r)) wg.add(box(cw,SHELL_H,T,M.shell,ox+c*cw+cw/2,SHELL_H/2,oz+r*cd));
+  }
+  if(b.backWall==='top') wg.add(box(W,SHELL_H,T,M.shell,0,SHELL_H/2,oz));
 }
 
 // top pair: 4 x 3 m (12 m²)
@@ -788,6 +804,8 @@ function normalize(raw){
     design:(raw.design==='bespoke'||LAYOUTS[raw.design])?raw.design:'none',
     wall:hex(raw.wall,DEFAULTS.wall), accent:hex(raw.accent,DEFAULTS.accent),
     example:raw.example===true,
+    span:(()=>{const q=raw.span, i=(v,lo,hi)=>Number.isInteger(v)&&v>=lo&&v<=hi;
+      return q&&typeof q==='object'&&i(q.c,0,5)&&i(q.r,0,5)&&i(q.cs,1,3)&&i(q.rs,1,3)&&q.cs*q.rs>1?{c:q.c,r:q.r,cs:q.cs,rs:q.rs}:null;})(),
     floor:FLOORS[raw.floor]?raw.floor:DEFAULTS.floor,
     items:raw.design==='custom'?normalizeItems(raw.items):[],
     brief:raw.design==='custom'&&typeof raw.brief==='string'?raw.brief.trim().slice(0,400):'',
@@ -902,6 +920,39 @@ function buildKit(st,cfg){
   st.dressView={p:[st.center.x+f.x*dist+s.x*1.6,1.75,st.center.z+f.z*dist+s.z*1.6],t:[st.center.x,1.3,st.center.z]};
 }
 
+// joining plots: a stand can take over neighbouring empty plots in its block (3x6, 6x6, 6x9)
+const SPANS=[[1,1],[2,1],[1,2],[2,2],[3,2],[2,3]];
+const openText=n=>n<=1?'Inline · 1 side open':n===2?'Corner · 2 sides open':n===3?'Peninsula · 3 sides open':'Island · 4 sides open';
+function spanRect(st,cs,rs){const b=st.block; if(!b.resizable||cs>b.cols||rs>b.rows) return null; return {c:Math.min(st.cell.c,b.cols-cs),r:Math.min(st.cell.r,b.rows-rs),cs,rs};}
+function cellsIn(b,q){return b.stands.filter(o=>o.cell.c>=q.c&&o.cell.c<q.c+q.cs&&o.cell.r>=q.r&&o.cell.r<q.r+q.rs);}
+function relayout(b){
+  if(!b.resizable) return;
+  b.stands.forEach(o=>{o.absorbedBy=null; o.rect=null;});
+  b.stands.forEach(o=>{
+    const q=o.data.span; if(!q||o.absorbedBy) return;
+    if(q.c+q.cs>b.cols||q.r+q.rs>b.rows) return;
+    const inside=cellsIn(b,q);
+    if(!inside.includes(o)||inside.some(n=>n!==o&&(n.absorbedBy||n.rect))) return;
+    o.rect=q; inside.forEach(n=>{if(n!==o) n.absorbedBy=o;});
+  });
+  b.stands.forEach(o=>{
+    const q=o.rect||{c:o.cell.c,r:o.cell.r,cs:1,rs:1};
+    o.w=q.cs*b.cw; o.d=q.rs*b.cd;
+    const x=b.ox+q.c*b.cw+o.w/2, z=b.oz+q.r*b.cd+o.d/2; o.local={x,z};
+    o.center=new THREE.Vector3(x,0,z).applyMatrix4(b.g.matrixWorld);
+    let opens=0; if(q.r===0&&b.backWall!=='top')opens++; if(q.r+q.rs===b.rows)opens++; if(q.c===0)opens++; if(q.c+q.cs===b.cols)opens++;
+    o.opens=opens; o.open=openText(opens);
+    o.plate.geometry.dispose(); o.plate.geometry=new THREE.BoxGeometry(o.w-.04,.08,o.d-.04); o.plate.position.set(x,.04,z);
+    o.pick.geometry.dispose(); o.pick.geometry=new THREE.BoxGeometry(o.w,SHELL_H,o.d); o.pick.position.set(x,SHELL_H/2,z);
+  });
+  buildWalls(b);
+  b.stands.forEach(o=>{
+    if(!o.absorbedBy){ dress(o); return; }
+    undress(o); o.plate.visible=false;
+    if(o.label){standLabels.remove(o.label); if(o.label.material.map)o.label.material.map.dispose(); o.label.material.dispose(); o.label=null;}
+  });
+  pickables.length=0; stands.forEach(o=>{if(!o.absorbedBy) pickables.push(o.pick);});
+}
 function undress(st){
   if(!st.dress) return;
   if(st.dress.parent) st.dress.parent.remove(st.dress);
@@ -916,7 +967,7 @@ function dress(st){
   undress(st);
   const d=st.data.design;
   try{
-    if(d==='bespoke'&&BESPOKE[st.id]) BESPOKE[st.id].fn(st);
+    if(d==='bespoke'&&BESPOKE[st.id]&&!st.rect) BESPOKE[st.id].fn(st);
     else if(LAYOUTS[d]) buildKit(st,st.data);
   }catch(e){console.error('Stand design failed',st.id,e); undress(st);}
   st.plate.visible=!st.dress;
@@ -934,7 +985,7 @@ function refreshLabel(st){
 function legend(){
   const m2=a=>a.reduce((t,s)=>t+s.w*s.d,0).toLocaleString('en-GB')+' m²';
   [['av','available'],['rs','reserved'],['sd','sold']].forEach(([k,status])=>{
-    const a=stands.filter(s=>s.data.status===status);
+    const a=stands.filter(s=>!s.absorbedBy&&s.data.status===status);
     document.getElementById('lg-'+k+'-m2').textContent=m2(a);
     document.getElementById('lg-'+k+'-n').textContent=a.length;
     document.getElementById('lg-'+k+'-w').textContent=a.length===1?'stand':'stands';
@@ -1032,13 +1083,27 @@ const info=document.getElementById('info'), form=document.getElementById('edit')
 const FF={sponsor:document.getElementById('f-sponsor'),status:document.getElementById('f-status'),design:document.getElementById('f-design'),
   wall:document.getElementById('f-wall'),accent:document.getElementById('f-accent'),example:document.getElementById('f-example')};
 let current=null, formStand=null, readOnly=false, db=null; const remote={};
-FF.floor=document.getElementById('f-floor'); FF.extras={};
+FF.floor=document.getElementById('f-floor'); FF.extras={}; FF.size=document.getElementById('f-size');
+// sizes this stand could be, given its block; a size is unavailable while a plot it needs is booked or already joined
+function sizeOptions(st){
+  const b=st.block;
+  if(!b.resizable) return [{v:'1,1',t:st.w+' × '+st.d+' m (fixed)',ok:true}];
+  const zf=st.face[1]==='z', out=[];
+  SPANS.forEach(([cs,rs])=>{
+    const q=spanRect(st,cs,rs); if(!q) return;
+    const busy=cellsIn(b,q).some(o=>o!==st&&((o.absorbedBy&&o.absorbedBy!==st)||o.rect||o.data.sponsor||o.data.status!=='available'||o.data.design!=='none'));
+    const w=cs*b.cw, d=rs*b.cd, wide=zf?w:d, deep=zf?d:w;
+    out.push({v:cs+','+rs,ok:!busy,t:(cs*rs===1?wide+' × '+deep+' m (single plot)':wide+' m wide × '+deep+' m deep')+(busy?' · neighbour in use':'')});
+  });
+  return out;
+}
 Object.entries(FLOORS).forEach(([v,[t]])=>{const o=document.createElement('option'); o.value=v; o.textContent=t; FF.floor.appendChild(o);});
 Object.entries(EXTRAS).forEach(([k,t])=>{const l=document.createElement('label'), i=document.createElement('input'); i.type='checkbox'; i.id='f-x-'+k; l.htmlFor=i.id; l.append(i,' '+t); document.getElementById('f-extras').appendChild(l); FF.extras[k]=i;});
 const aiBox=document.getElementById('ai'), aiBtn=document.getElementById('f-ai'), aiNote=document.getElementById('ai-note'), briefEl=document.getElementById('f-brief');
 let formItems=[], sampleFn;
 function aiSay(t){aiNote.textContent=t||''; aiNote.hidden=!t;}
-function formData(){return normalize({sponsor:FF.sponsor.value,status:FF.status.value,design:FF.design.value,wall:FF.wall.value,accent:FF.accent.value,example:FF.example.checked,
+function formSpan(){ const [cs,rs]=FF.size.value.split(',').map(Number); return formStand&&cs*rs>1?spanRect(formStand,cs,rs):null; }
+function formData(){return normalize({span:formSpan(),sponsor:FF.sponsor.value,status:FF.status.value,design:FF.design.value,wall:FF.wall.value,accent:FF.accent.value,example:FF.example.checked,
   floor:FF.floor.value,extras:Object.fromEntries(Object.keys(EXTRAS).map(k=>[k,FF.extras[k].checked])),items:formItems,brief:briefEl.value});}
 function aiPrompt(st,cur){
   const zf=st.face[1]==='z', W=zf?st.w:st.d, D=zf?st.d:st.w;
@@ -1082,8 +1147,11 @@ function pills(st){const f=document.createDocumentFragment();
   p(cap(st.data.status),'st-'+st.data.status); if(st.data.example)p('Example'); if(st.marked)p('Marked','mk'); return f;}
 function fillForm(st){
   formStand=st; const d=st.data;
+  FF.size.textContent=''; const cur=st.rect?st.rect.cs+','+st.rect.rs:'1,1';
+  sizeOptions(st).forEach(o=>{const e=document.createElement('option'); e.value=o.v; e.textContent=o.t; e.disabled=!o.ok&&o.v!==cur; FF.size.appendChild(e);});
+  FF.size.value=cur; FF.size.disabled=!st.block.resizable;
   FF.design.textContent='';
-  [['none','None (empty plot)']].concat(Object.entries(LAYOUTS)).concat(BESPOKE[st.id]?[['bespoke',BESPOKE[st.id].label]]:[]).forEach(([v,t])=>{const o=document.createElement('option'); o.value=v; o.textContent=t; FF.design.appendChild(o);});
+  [['none','None (empty plot)']].concat(Object.entries(LAYOUTS)).concat(BESPOKE[st.id]&&!st.rect?[['bespoke',BESPOKE[st.id].label]]:[]).forEach(([v,t])=>{const o=document.createElement('option'); o.value=v; o.textContent=t; FF.design.appendChild(o);});
   FF.sponsor.value=d.sponsor; FF.status.value=d.status; FF.design.value=d.design; FF.wall.value=d.wall; FF.accent.value=d.accent; FF.example.checked=d.example;
   FF.floor.value=d.floor; Object.keys(EXTRAS).forEach(k=>{FF.extras[k].checked=d.extras[k];}); formItems=d.items; briefEl.value=d.brief; kitState();
 }
@@ -1106,8 +1174,13 @@ function renderInfo(){
 }
 function select(h){ if(h!==current){ note(''); aiSay(''); } selected=h&&h!=='feature'?h:null; current=h; paint(); renderInfo(); }
 function applyData(st,raw){
-  st.data=normalize(raw); dress(st); paint(); legend(); renderList();
-  if(current===st) renderInfo();
+  const before=JSON.stringify(st.data.span);
+  st.data=normalize(raw);
+  if(st.block.resizable&&JSON.stringify(st.data.span)!==before) relayout(st.block);
+  else if(!st.absorbedBy) dress(st);
+  if(current&&current!=='feature'&&current.absorbedBy){ current=current.absorbedBy; selected=current; }
+  paint(); legend(); renderList();
+  if(current===st||(current&&current!=='feature'&&current.block===st.block)) renderInfo();
 }
 async function save(st,data){
   applyData(st,data||{});
@@ -1131,6 +1204,7 @@ const listEl=document.getElementById('list'), listBtn=document.getElementById('l
 function renderList(){
   listUl.textContent='';
   stands.forEach(st=>{
+    if(st.absorbedBy) return;
     const li=document.createElement('li'), b=document.createElement('button'); b.type='button';
     const id=document.createElement('b'); id.textContent=st.id;
     const meta=document.createElement('span'); meta.textContent=st.w+' × '+st.d+' m · '+cap(st.data.status)+(st.data.sponsor?' · '+st.data.sponsor:'');
