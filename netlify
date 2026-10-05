@@ -1,0 +1,273 @@
+// Board 2027 floorplan API
+//   GET    /api/stands        everyone: all saved stands
+//   POST   /api/login         editors: checks the team password
+//   PUT    /api/stands/:key   editors: save one stand
+//   DELETE /api/stands/:key   editors: clear one stand
+//   POST   /api/design        editors: ask Claude for a stand design
+// Settings (Netlify > Site configuration > Environment variables):
+//   EDIT_PASSWORD      required, the shared team password
+//   ANTHROPIC_API_KEY  required for "Design with Claude"
+//   CLAUDE_MODEL       optional, defaults to a fast model
+import { getStore } from "@netlify/blobs";
+import { timingSafeEqual, createHash } from "node:crypto";
+
+export const config = { path: "/api/*" };
+
+const STORE = "board-2027";
+const BLOB = "stands";
+const KEY_RE = /^[A-Z]\d{2}(-\d{2})?$/;
+const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+
+// What the plan looked like when the site was first exported. Used until the first save.
+const INITIAL = {
+  "G10": {
+    "accent": "#1f6fb2",
+    "brief": "BOARD design (blue and green) with similar structure to now, less congested in the stand",
+    "design": "custom",
+    "example": false,
+    "extras": {
+      "fascia": true,
+      "halo": false,
+      "plant": false,
+      "store": false,
+      "tv": false
+    },
+    "floor": "charcoal",
+    "items": [
+      {
+        "color": "",
+        "d": 1,
+        "h": 1,
+        "r": 0.3,
+        "rot": 0,
+        "text": "",
+        "type": "counter",
+        "w": 1,
+        "x": -0.9,
+        "y": 0,
+        "z": -0.1
+      },
+      {
+        "color": "",
+        "d": 1,
+        "h": 1,
+        "r": 0.3,
+        "rot": 0,
+        "text": "",
+        "type": "stool",
+        "w": 1,
+        "x": -0.9,
+        "y": 0,
+        "z": -0.65
+      },
+      {
+        "color": "",
+        "d": 1,
+        "h": 1,
+        "r": 0.3,
+        "rot": 0,
+        "text": "",
+        "type": "meetingTable",
+        "w": 1,
+        "x": 0.6,
+        "y": 0,
+        "z": -0.1
+      },
+      {
+        "color": "",
+        "d": 1,
+        "h": 1,
+        "r": 0.3,
+        "rot": 90,
+        "text": "",
+        "type": "chair",
+        "w": 1,
+        "x": -0.1,
+        "y": 0,
+        "z": -0.1
+      },
+      {
+        "color": "",
+        "d": 1,
+        "h": 1,
+        "r": 0.3,
+        "rot": 270,
+        "text": "",
+        "type": "chair",
+        "w": 1,
+        "x": 1.25,
+        "y": 0,
+        "z": -0.1
+      },
+      {
+        "color": "",
+        "d": 1,
+        "h": 1,
+        "r": 0.3,
+        "rot": 0,
+        "text": "",
+        "type": "pod",
+        "w": 1,
+        "x": 0.3,
+        "y": 0,
+        "z": -1
+      },
+      {
+        "color": "#1f6fb2",
+        "d": 1,
+        "h": 1.4,
+        "r": 0.3,
+        "rot": 0,
+        "text": "Grow Beyond",
+        "type": "panel",
+        "w": 0.8,
+        "x": -1,
+        "y": 1,
+        "z": 0
+      },
+      {
+        "color": "#2e8b57",
+        "d": 1,
+        "h": 1.4,
+        "r": 0.3,
+        "rot": 0,
+        "text": "Build the Future",
+        "type": "panel",
+        "w": 0.8,
+        "x": 1,
+        "y": 1,
+        "z": 0
+      },
+      {
+        "color": "#1f6fb2",
+        "d": 1.2,
+        "h": 1,
+        "r": 0.3,
+        "rot": 0,
+        "text": "",
+        "type": "rug",
+        "w": 1.6,
+        "x": 0.6,
+        "y": 0,
+        "z": -0.1
+      }
+    ],
+    "sponsor": "BOARD",
+    "status": "available",
+    "wall": "#173c30"
+  },
+  "H01-02": {
+    "accent": "#2f7f29",
+    "brief": "",
+    "design": "reception",
+    "example": true,
+    "extras": {
+      "fascia": true,
+      "halo": false,
+      "plant": false,
+      "store": false,
+      "tv": false
+    },
+    "floor": "grey",
+    "items": [],
+    "sponsor": "BOARD",
+    "status": "available",
+    "wall": "#1b429d"
+  }
+};
+
+const json = (body, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
+const fail = (status, code, message) => json({ code, message }, status);
+
+function isEditor(req) {
+  const want = process.env.EDIT_PASSWORD || "";
+  const got = req.headers.get("x-edit-password") || "";
+  if (!want || !got) return false;
+  const h = (v) => createHash("sha256").update(v).digest();
+  return timingSafeEqual(h(want), h(got));
+}
+
+async function readAll(store) {
+  const res = await store.getWithMetadata(BLOB, { type: "json", consistency: "strong" });
+  if (!res || res.data == null) return { stands: INITIAL, etag: null };
+  return { stands: res.data, etag: res.etag || null };
+}
+
+// read-modify-write with a retry, so two people saving different stands at once don't lose either change
+async function mutate(store, change) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { stands, etag } = await readAll(store);
+    const next = { ...stands };
+    change(next);
+    const res = await store.setJSON(BLOB, next, etag ? { onlyIfMatch: etag } : { onlyIfNew: true });
+    if (!res || res.modified !== false) return next;
+  }
+  throw new Error("busy");
+}
+
+async function design(prompt) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return fail(503, "not_configured", "ANTHROPIC_API_KEY is not set");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: process.env.CLAUDE_MODEL || DEFAULT_MODEL,
+      max_tokens: 2500,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (r.status === 429) return fail(429, "rate_limited", "Claude is busy");
+  if (!r.ok) return fail(502, "unavailable", "Claude request failed (" + r.status + ")");
+  const out = await r.json();
+  const text = (out.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  const a = text.indexOf("{"), b = text.lastIndexOf("}");
+  try {
+    return json({ design: JSON.parse(text.slice(a, b + 1)) });
+  } catch {
+    return fail(422, "invalid_json", "Claude's reply was not valid JSON");
+  }
+}
+
+export default async (req) => {
+  const parts = new URL(req.url).pathname.replace(/^\/api\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
+  const [resource, key] = parts;
+  const store = getStore(STORE);
+  try {
+    if (resource === "stands" && !key && req.method === "GET") {
+      return json({ stands: (await readAll(store)).stands });
+    }
+    if (!isEditor(req)) return fail(401, "not_granted", "Editor password required");
+    if (resource === "login" && req.method === "POST") return json({ ok: true });
+
+    if (resource === "stands" && key) {
+      if (!KEY_RE.test(key)) return fail(400, "invalid_argument", "Unknown stand");
+      if (req.method === "DELETE") {
+        await mutate(store, (s) => { delete s[key]; });
+        return json({ ok: true });
+      }
+      if (req.method === "PUT") {
+        const raw = await req.text();
+        if (raw.length > 20000) return fail(413, "invalid_argument", "Stand data too large");
+        let data;
+        try { data = JSON.parse(raw); } catch { return fail(400, "invalid_argument", "Bad JSON"); }
+        if (!data || typeof data !== "object" || Array.isArray(data)) return fail(400, "invalid_argument", "Bad stand data");
+        await mutate(store, (s) => { s[key] = data; });
+        return json({ ok: true });
+      }
+    }
+    if (resource === "design" && req.method === "POST") {
+      const body = await req.json().catch(() => null);
+      const prompt = body && typeof body.prompt === "string" ? body.prompt : "";
+      if (!prompt || prompt.length > 12000) return fail(400, "invalid_argument", "Bad prompt");
+      return await design(prompt);
+    }
+    return fail(404, "not_found", "No such route");
+  } catch (e) {
+    return fail(503, "unavailable", "Storage is busy, try again");
+  }
+};
