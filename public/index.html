@@ -12,7 +12,7 @@
 :root{
   --bg:#e7e9e4; --panel:rgba(250,250,247,.92); --fg:#1d2321; --muted:#5d6661; --line:#c9cdc6;
   --accent:#e2621b; --accent-ink:#fff; --feature:#c9bfd8; --avail:#ffffff;
-  --scene-bg:#dfe2dc; --scene-floor:#cfd3cc; --scene-wall:#b9beb6; --sold:#24432f; --res:#f2c14e;
+  --scene-bg:#14213d; --scene-floor:#cfd3cc; --scene-wall:#b9beb6; --sold:#24432f; --res:#f2c14e;
   --display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
   --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -20,13 +20,13 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#141817; --panel:rgba(28,33,31,.9); --fg:#e8ebe6; --muted:#9aa39d; --line:#39413d;
   --accent:#f07a35; --accent-ink:#1a0d04; --feature:#7d6f95; --avail:#e9ebe6;
-  --scene-bg:#161a19; --scene-floor:#2b3130; --scene-wall:#3c4441; --sold:#6fa07f; --res:#f2c14e; color-scheme:dark }}
+  --scene-bg:#14213d; --scene-floor:#2b3130; --scene-wall:#3c4441; --sold:#6fa07f; --res:#f2c14e; color-scheme:dark }}
 :root[data-theme="dark"]{
   --bg:#141817; --panel:rgba(28,33,31,.9); --fg:#e8ebe6; --muted:#9aa39d; --line:#39413d;
   --accent:#f07a35; --accent-ink:#1a0d04; --feature:#7d6f95; --avail:#e9ebe6;
-  --scene-bg:#161a19; --scene-floor:#2b3130; --scene-wall:#3c4441; --sold:#6fa07f; --res:#f2c14e; color-scheme:dark }
+  --scene-bg:#14213d; --scene-floor:#2b3130; --scene-wall:#3c4441; --sold:#6fa07f; --res:#f2c14e; color-scheme:dark }
 html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);overflow:hidden}
+body{background:var(--scene-bg);color:var(--fg);font-family:var(--body);overflow:hidden}
 #stage{position:fixed;inset:0}
 #stage canvas{display:block;touch-action:none}
 .ui{position:fixed;inset:0;pointer-events:none;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;flex-direction:column;justify-content:space-between;gap:12px}
@@ -95,7 +95,7 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .views button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .hint{font-size:12px;color:var(--muted);padding:2px 6px 0}
 #loading[hidden]{display:none}
-#loading{position:fixed;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:13px;color:var(--muted)}
+#loading{position:fixed;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:13px;color:#c8d0e0}
 @media (max-width:640px){
   .sheet h1{font-size:22px}
   .legend{font-size:12px}
@@ -420,8 +420,8 @@ const entranceG=new THREE.Group(); scene.add(entranceG);
 [[408,138,160,30],[815,138,190,30],[408,887,160,30],[815,887,190,30]].forEach(([px,py,w,d])=>{
   scene.add(box(w/S,.4,d/S,M.core,mx(px),.2,mz(py)));
 });
-addLabel('Côté avenue Princesse Grace',mx(640),5.6,mz(120),{size:1.6,bg:null,fg:'#1d2321'});
-addLabel('Côté Mer',mx(640),5.6,mz(905),{size:1.6,bg:null,fg:'#1d2321'});
+addLabel('Côté avenue Princesse Grace',mx(640),5.6,mz(120),{size:1.6,bg:null,fg:'#ffffff'});
+addLabel('Côté Mer',mx(640),5.6,mz(905),{size:1.6,bg:null,fg:'#ffffff'});
 const entLbl=addLabel('Entrance →',mx(150),2.6,mz(512),{size:1.4,bg:'#1d2321',fg:'#ffffff'});
 addLabel('Bar',mx(195),2.4,mz(440),{size:1});
 addLabel('Bar',mx(195),2.4,mz(590),{size:1});
@@ -1036,7 +1036,7 @@ addLabel('3 m aisle',5.75,.6,-10.25,{size:.6,bg:null,fg:'#5d6661'});
 function applyTheme(){
   const cs=getComputedStyle(document.documentElement);
   const v=n=>cs.getPropertyValue(n).trim();
-  scene.background=new THREE.Color(v('--scene-bg')||'#dfe2dc');
+  scene.background=new THREE.Color(v('--scene-bg')||'#14213d');
   M.floor.color.set(v('--scene-floor')||'#cfd3cc');
   M.wall.color.set(v('--scene-wall')||'#b9beb6');
   M.feature.color.set(v('--feature')||'#c9bfd8');

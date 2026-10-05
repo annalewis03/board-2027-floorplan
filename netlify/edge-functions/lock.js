@@ -34,7 +34,7 @@ const loginPage = (failed) => `<!doctype html>
 <style>
 :root{--bg:#e7e9e4;--panel:#fafaf7;--fg:#1d2321;--muted:#5d6661;--line:#c9cdc6;--accent:#e2621b}
 @media (prefers-color-scheme:dark){:root{--bg:#141817;--panel:#1c211f;--fg:#e8ebe6;--muted:#9aa39d;--line:#39413d;--accent:#f07a35;color-scheme:dark}}
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px;box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#14213d;color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px;box-sizing:border-box}
 form{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:24px;display:grid;gap:12px;width:100%;max-width:320px;box-sizing:border-box}
 h1{font-size:22px;margin:0}
 p{margin:0;color:var(--muted);font-size:13px}
