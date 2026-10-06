@@ -70,7 +70,7 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .maps a{font:500 12px var(--body);color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:4px;padding:3px 8px}
 .maps a[aria-current="page"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .maps a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sw.in{background:#e3d6bd}.sw.pr{background:#b9a8d6}.sw.sv{background:#8a918a}.sw.gl{background:#9fc3cf}
+.sw.in{background:#f0cf7a}.sw.en{background:#eda25f}.sw.te{background:#d98c8c}.sw.of{background:#b79adb}.sw.pr{background:#d8d2c6}.sw.sv{background:#8a918a}
 @media (max-width:640px){.sheet h1{font-size:22px}.legend{font-size:12px}.controls{width:100%}.hint{display:none}}
 </style>
 </head>
@@ -83,15 +83,18 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
     <header class="panel sheet">
       <h1>Indigo <span>· Board 2027</span></h1>
       <p>Grimaldi Forum Monaco · 22–24 March 2027</p>
-      <div class="issue">Traced from the venue plan · scale estimated, about ±15%</div>
+      <div class="issue">Traced from the venue plan · scale set from its marked areas</div>
       <nav class="maps" aria-label="Maps"><a href="/">Exhibition hall</a><a href="/indigo.html" aria-current="page">Indigo</a></nav>
       <div class="issue" id="auth"><form method="post" action="/api/logout"><button type="submit">Sign out</button></form></div>
     </header>
     <div class="panel legend" aria-label="Legend">
-      <div><span class="sw in"></span>Indigo floor <b id="lg-area">–</b></div>
+      <div><span class="sw in"></span>Main room <b>505 m²</b></div>
+      <div><span class="sw en"></span>Entrance area <b>115 m²</b></div>
+      <div><span class="sw te"></span>Terrace <b>313 m²</b></div>
+      <div><span class="sw of"></span>Office Bar 1 · kitchen · reserve <b>52 m²</b></div>
+      <div><span class="sw of"></span>Office Bar 2 <b>27 m²</b></div>
       <div><span class="sw pr"></span>Privé room <b id="lg-prive">–</b></div>
-      <div><span class="sw sv"></span>Kitchen, offices, lifts, WCs</div>
-      <div><span class="sw gl"></span>Glazed walls and doors</div>
+      <div><span class="sw sv"></span>Lifts, stairs, WCs</div>
     </div>
   </div>
   <div class="bottom">
@@ -122,8 +125,8 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 "use strict";
 if(!window.THREE){document.getElementById('loading').textContent='3D library failed to load. Reload the page to try again.';return;}
 
-/* units: plan pixels -> metres. Scale estimated from the 6.6 m column grid (70 px) */
-const S=10.6, OX=490, OY=330;
+/* units: plan pixels -> metres. Scale set from the areas marked on the venue plan (505, 115 and 313 m2 agree within 2%) */
+const S=14, OX=490, OY=330;
 const mx=px=>(px-OX)/S, mz=py=>(py-OY)/S;
 
 const host=document.getElementById('stage');
@@ -141,13 +144,13 @@ const camera=new THREE.PerspectiveCamera(45,host.clientWidth/host.clientHeight,0
 const controls=new THREE.OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true; controls.dampingFactor=0.08; controls.maxPolarAngle=Math.PI/2-0.03; controls.minDistance=1.5; controls.maxDistance=260;
 scene.add(new THREE.HemisphereLight(0xffffff,0x7c817b,0.55));
-const sun=new THREE.DirectionalLight(0xfff4e6,0.5); sun.position.set(-12,70,18); sun.castShadow=true;
+const sun=new THREE.DirectionalLight(0xfff4e6,0.5); sun.position.set(-10,60,15); sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-45,right:50,top:40,bottom:-40,near:1,far:160}); sun.shadow.bias=-0.0005; scene.add(sun);
 
 const mat=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.9},o||{}));
-const M={floor:mat(0xe3d6bd),prive:mat(0xb9a8d6),ctx:mat(0x59615d),wall:mat(0xf2f1ec,{roughness:.7}),core:mat(0x8a918a),dark:mat(0x1b1e22,{roughness:.6}),
+const M={floor:mat(0xe3d6bd),main:mat(0xf0cf7a),entr:mat(0xeda25f),terr:mat(0xd98c8c),office:mat(0xb79adb),prive:mat(0xd8d2c6),ctx:mat(0x59615d),wall:mat(0xf2f1ec,{roughness:.7}),core:mat(0x8a918a),dark:mat(0x1b1e22,{roughness:.6}),
   glass:mat(0x9fc3cf,{transparent:true,opacity:.32,roughness:.1,metalness:.1}),pillar:mat(0x151716,{roughness:.6}),oak:mat(0xb08455,{roughness:.6}),
-  steel:mat(0x8b9196,{metalness:.4,roughness:.4}),voidM:mat(0x0c1426,{roughness:1}),zone:new THREE.MeshBasicMaterial({color:0xe2621b,transparent:true,opacity:.5})};
+  steel:mat(0x8b9196,{metalness:.4,roughness:.4}),voidM:mat(0x0c1426,{roughness:1}),zone:new THREE.MeshBasicMaterial({color:0x7a3410,transparent:true,opacity:.55})};
 const H=2.8, T=.18;
 
 function label(text,{size=1,bg='rgba(255,255,255,.92)',fg='#1d2321',weight=600}={}){
@@ -181,12 +184,15 @@ const area=pts=>Math.abs(pts.reduce((t,[x,z],i)=>{const [x2,z2]=pts[(i+1)%pts.le
 const ROOM=[[224,204],[725,204],[725,63],[786,63],[786,343],[733,343],[653,272],[653,520],[603,520],[603,482],[585,482],[585,410],[408,410],[408,562],[370,562],[224,418]];
 const PRIVE=[[232,52],[302,52],[302,204],[232,204]];
 slab([[150,30],[980,30],[980,650],[150,650]],M.ctx,-.06);            // surrounding building, for context
-slab(ROOM,M.floor,0);
+slab(ROOM,M.floor,0);                                               // circulation: bar zone, passages, door lobby
+const MAIN=[[224,204],[646,204],[646,410],[366,410],[366,482],[406,482],[406,562],[370,562],[224,418]];           // 505 m2 on the plan
+const ENTR=[[719,117],[785,117],[785,343],[725,343],[653,272],[646,265],[646,204],[719,204]];                       // 115 m2
+const TERR=[[91,210],[222,210],[222,418],[369,562],[369,615],[132,615],[132,400],[91,360]];                         // 313 m2
+slab(MAIN,M.main,.01); slab(ENTR,M.entr,.01); slab(TERR,M.terr,0);
 slab(PRIVE,M.prive,0);
 slab([[380,562],[408,562],[408,612],[380,612]],M.floor,0);           // small exit lobby, south-west
 // gallery and void north of the room, where the escalators arrive
 slab([[385,138],[448,76],[580,76],[643,138],[643,196],[385,196]],M.voidM,-.03);
-document.getElementById('lg-area').textContent='≈ '+Math.round(area(ROOM)/10)*10+' m²';
 document.getElementById('lg-prive').textContent='≈ '+Math.round(area(PRIVE)/5)*5+' m²';
 
 /* ---------- walls ---------- */
@@ -200,14 +206,16 @@ wall(733,343,786,343);
 // glazed west wall and diagonal terrace wall, with two double doors on the diagonal
 wall(224,204,224,418,M.glass);
 wall(224,418,370,562,M.glass);
-[[265,460],[328,524]].forEach(([x,z])=>{ const o=new THREE.Mesh(new THREE.BoxGeometry(2.2,2.3,.3),M.dark); o.position.set(mx(x),1.15,mz(z)); o.rotation.y=-Math.PI/4; scene.add(o); });
+[[265,460],[328,524]].forEach(([x,z])=>{ const o=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.3,.25),M.dark); o.position.set(mx(x),1.15,mz(z)); o.rotation.y=-Math.PI/4; scene.add(o); });
 wall(370,562,380,562); wall(380,562,380,612); wall(380,612,408,612,M.glass);
 // passage to the south escalators
 wall(653,490,653,520); wall(603,482,603,520); wall(585,482,603,482);
 
 /* ---------- blocks: kitchen, office bar and lift cores ---------- */
-rectBox(406,410,585,482,H,M.core);                                       // office, kitchen, reserve (with cold room)
-solid([[646,272],[656,272],[729,341],[790,341],[798,398],[742,470],[700,490],[646,490]],H,M.core);   // office bar, MC5a, MC5b
+rectBox(406,410,585,482,H,M.office);                                     // Office Bar 1, kitchen, reserve (52 m2, includes the 8.5 m2 cold room)
+solid([[648,276],[653,276],[726,344],[653,414],[648,414]],H,M.core);     // triangular structure beside the entrance area
+solid([[726,344],[762,356],[736,392],[730,405],[708,428],[676,440],[665,465],[653,465],[653,414]],H,M.office);   // Office Bar 2 (27 m2)
+solid([[762,356],[790,343],[798,398],[742,470],[700,490],[653,490],[653,465],[665,465],[676,440],[708,428],[730,405],[736,392]],H,M.core);   // MC5a, MC5b lifts
 rectBox(410,492,598,645,H,M.core);                                       // MC1 lift core
 rectBox(795,100,965,300,H,M.core);                                       // MC2 and WCs
 rectBox(655,555,700,645,H,M.core);                                       // WCs, south
@@ -218,8 +226,8 @@ const bar=(x0,z0,x1,z1)=>{ rectBox(x0,z0,x1,z1,barH,M.dark); const t=rectBox(x0-
 bar(366,412,377,476);                 // long run facing the room
 bar(390,387,433,395);                 // return along the top
 bar(427,395,433,400);
-(function(){ const o=new THREE.Mesh(new THREE.BoxGeometry(2.7,barH,1.0),M.dark); o.position.set(mx(378),barH/2,mz(399)); o.rotation.y=Math.PI/4; o.castShadow=true; scene.add(o);
-  const t=new THREE.Mesh(new THREE.BoxGeometry(2.95,.05,1.25),M.oak); t.position.set(mx(378),barH+.025,mz(399)); t.rotation.y=Math.PI/4; scene.add(t); })();
+(function(){ const o=new THREE.Mesh(new THREE.BoxGeometry(2.05,barH,.76),M.dark); o.position.set(mx(378),barH/2,mz(399)); o.rotation.y=Math.PI/4; o.castShadow=true; scene.add(o);
+  const t=new THREE.Mesh(new THREE.BoxGeometry(2.3,.05,.98),M.oak); t.position.set(mx(378),barH+.025,mz(399)); t.rotation.y=Math.PI/4; scene.add(t); })();
 rectBox(396,420,403,476,.95,M.steel);  // back bar against the kitchen wall
 
 /* ---------- screen on the kitchen wall: 3.17 x 1.89 m ---------- */
@@ -245,28 +253,31 @@ const zones=new THREE.Group(); scene.add(zones);
 function zone(x0,z0,x1,z1){ const t=.12; [[x0,z0,x1,z0],[x0,z1,x1,z1],[x0,z0,x0,z1],[x1,z0,x1,z1]].forEach(([a,b,c,d])=>{
   const o=new THREE.Mesh(new THREE.BoxGeometry(Math.abs(c-a)/S+t,.02,Math.abs(d-b)/S+t),M.zone); o.position.set(mx((a+c)/2),.02,mz((b+d)/2)); zones.add(o); }); }
 zone(258,262,318,360); zone(452,285,575,400);
-const zl=[say('Ceiling 2.68 m',288,311,.5,{size:.7,bg:null,fg:'#7a3410'}),say('Ceiling 2.92 m',513,330,.5,{size:.7,bg:null,fg:'#7a3410'}),say('Ceiling 2.60 m',600,235,.5,{size:.7,bg:null,fg:'#7a3410'}),say('Ceiling 2.46 m',395,512,.5,{size:.7,bg:null,fg:'#7a3410'})];
+const zl=[say('Ceiling 2.68 m',288,311,.5,{size:.55,bg:null,fg:'#7a3410'}),say('Ceiling 2.92 m',513,345,.5,{size:.55,bg:null,fg:'#7a3410'}),say('Ceiling 2.60 m',600,235,.5,{size:.55,bg:null,fg:'#7a3410'}),say('Ceiling 2.46 m',385,520,.5,{size:.55,bg:null,fg:'#7a3410'})];
 
 /* ---------- labels ---------- */
-say('Indigo',460,250,4.2,{size:2,bg:'#1d2321',fg:'#ffffff'});
-say('Privé',267,125,3.8,{size:1.2});
-say('Bar',395,440,2.2,{size:1.1,bg:'#1d2321',fg:'#ffffff'});
-say('Office · kitchen · reserve',495,446,3.7,{size:1});
-say('Screen 3.17 × 1.89 m',513,400,3.3,{size:.8});
-say('Office bar · MC5',715,420,3.7,{size:1});
-say('MC1',505,565,3.7,{size:1.1});
-say('MC2 · WC',880,200,3.7,{size:1.1});
-say('WC',678,600,3.7,{size:.9});
-say('Escalators',550,150,4.6,{size:1,bg:'#17a34a',fg:'#ffffff'});
-say('Escalators',628,560,4.2,{size:.9,bg:'#17a34a',fg:'#ffffff'});
-say('Entrance',757,85,3.6,{size:1,bg:'#17a34a',fg:'#ffffff'});
-say('Entrance',775,322,3.6,{size:.9,bg:'#17a34a',fg:'#ffffff'});
-say('Terrace doors',285,505,3.2,{size:.9});
+say('Indigo · 505 m²',440,300,3.8,{size:1.5,bg:'#1d2321',fg:'#ffffff'});
+say('Entrance area · 115 m²',730,235,3.6,{size:.85});
+say('Terrace · 313 m²',170,430,1.6,{size:1});
+say('Privé',267,125,3.6,{size:.9});
+say('Bar',386,440,2.1,{size:.8,bg:'#1d2321',fg:'#ffffff'});
+say('Office Bar 1 · kitchen · reserve · 52 m²',495,446,3.6,{size:.75});
+say('Screen 3.17 × 1.89 m',513,400,3.2,{size:.6});
+say('Office Bar 2 · 27 m²',705,395,3.6,{size:.7});
+say('MC5',745,440,3.5,{size:.7});
+say('MC1',505,565,3.6,{size:.9});
+say('MC2 · WC',880,200,3.6,{size:.9});
+say('WC',678,600,3.6,{size:.7});
+say('Escalators',550,150,4.4,{size:.8,bg:'#17a34a',fg:'#ffffff'});
+say('Escalators',628,560,4,{size:.7,bg:'#17a34a',fg:'#ffffff'});
+say('Entrance',757,80,3.5,{size:.8,bg:'#17a34a',fg:'#ffffff'});
+say('Entrance',800,322,3.5,{size:.7,bg:'#17a34a',fg:'#ffffff'});
+say('Terrace doors',285,505,3.1,{size:.7});
 
 /* ---------- views ---------- */
 const VIEWS={
-  overview:{p:[-22,36,40],t:[0,0,2]},
-  plan:{p:[2,230,.01],t:[2,0,0],fov:17},
+  overview:{p:[-20,29,31],t:[-2,0,1],},
+  plan:{p:[1,190,.01],t:[1,0,0],fov:17},
   arrival:{p:[mx(550),1.7,mz(212)],t:[mx(500),1.3,mz(400)]},
   bar:{p:[mx(300),1.7,mz(380)],t:[mx(385),1.1,mz(435)]},
   screen:{p:[mx(513),1.7,mz(300)],t:[mx(513),1.5,mz(410)]}
@@ -289,7 +300,7 @@ function tick(now){
   controls.update(); renderer.render(scene,camera); requestAnimationFrame(tick);
 }
 document.getElementById('loading').hidden=true;
-window.__indigo={scene,area:area(ROOM),prive:area(PRIVE)};
+window.__indigo={scene,main:area(MAIN),entr:area(ENTR),terr:area(TERR),prive:area(PRIVE)};
 requestAnimationFrame(tick);
 })();
 </script>
