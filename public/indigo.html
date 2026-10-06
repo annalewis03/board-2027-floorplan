@@ -151,7 +151,7 @@ sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-45,rig
 const mat=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.9},o||{}));
 const M={floor:mat(0xe3d6bd),main:mat(0xf0cf7a),entr:mat(0xeda25f),terr:mat(0xd98c8c),office:mat(0xb79adb),prive:mat(0xd8d2c6),ctx:mat(0x59615d),wall:mat(0xf2f1ec,{roughness:.7}),core:mat(0x8a918a),dark:mat(0x1b1e22,{roughness:.6}),
   glass:mat(0x9fc3cf,{transparent:true,opacity:.32,roughness:.1,metalness:.1}),pillar:mat(0x151716,{roughness:.6}),oak:mat(0xb08455,{roughness:.6}),
-  steel:mat(0x8b9196,{metalness:.4,roughness:.4}),voidM:mat(0x0c1426,{roughness:1}),zone:new THREE.MeshBasicMaterial({color:0x7a3410,transparent:true,opacity:.55})};
+  steel:mat(0x8b9196,{metalness:.4,roughness:.4}),voidM:mat(0x46536e,{roughness:1}),zone:new THREE.MeshBasicMaterial({color:0x7a3410,transparent:true,opacity:.55})};
 const H=2.8, T=.18;
 
 function label(text,{size=1,bg='rgba(255,255,255,.92)',fg='#1d2321',weight=600}={}){
@@ -167,8 +167,9 @@ const labels=new THREE.Group(); scene.add(labels);
 const say=(t,px,py,y,o)=>{const s=label(t,o); s.position.set(mx(px),y,mz(py)); labels.add(s); return s;};
 
 /* helpers working in plan pixels */
-function slab(pts,m,y){ // flat floor polygon
-  const sh=new THREE.Shape(pts.map(([x,z])=>new THREE.Vector2(mx(x),-mz(z)))); const g=new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI/2);
+function slab(pts,m,y,holes){ // flat floor polygon, optionally with openings cut through it
+  const sh=new THREE.Shape(pts.map(([x,z])=>new THREE.Vector2(mx(x),-mz(z))));
+  (holes||[]).forEach(h=>sh.holes.push(new THREE.Path(h.map(([x,z])=>new THREE.Vector2(mx(x),-mz(z)))))); const g=new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI/2);
   const o=new THREE.Mesh(g,m); o.position.y=y||0; o.receiveShadow=true; scene.add(o); return o; }
 function solid(pts,h,m){ // extruded block
   const sh=new THREE.Shape(pts.map(([x,z])=>new THREE.Vector2(mx(x),-mz(z)))); const g=new THREE.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false}); g.rotateX(-Math.PI/2);
@@ -184,7 +185,10 @@ const area=pts=>Math.abs(pts.reduce((t,[x,z],i)=>{const [x2,z2]=pts[(i+1)%pts.le
 // main Indigo room, including the entrance corridor (north-east) and the passage to the south escalators
 const ROOM=[[224,204],[725,204],[725,63],[786,63],[786,343],[733,343],[653,272],[653,520],[603,520],[603,482],[585,482],[585,410],[408,410],[408,562],[370,562],[224,418]];
 const PRIVE=[[232,52],[302,52],[302,204],[232,204]];
-slab([[150,30],[980,30],[980,650],[150,650]],M.ctx,-.06);            // surrounding building, for context
+// escalator wells: the escalators come up to Indigo from the level below, so the floor is open around them
+const WELL_N=[[385,138],[448,76],[580,76],[643,138],[643,203],[385,203]], WELL_S=[[606,522],[651,522],[651,604],[606,604]], LOWER=-3.6;
+slab([[150,30],[980,30],[980,650],[150,650]],M.ctx,-.06,[WELL_N,WELL_S]);   // surrounding building, for context
+slab(WELL_N,M.voidM,LOWER); slab(WELL_S,M.voidM,LOWER);                    // floor of the level below, seen through the wells
 slab(ROOM,M.floor,0);                                               // circulation: bar zone, passages, door lobby
 const MAIN=[[224,204],[646,204],[646,410],[366,410],[366,482],[406,482],[406,562],[370,562],[224,418]];           // 505 m2 on the plan
 const ENTR=[[719,117],[785,117],[785,343],[725,343],[653,272],[646,265],[646,204],[719,204]];                       // 115 m2
@@ -192,8 +196,6 @@ const TERR=[[91,210],[222,210],[222,418],[369,562],[369,615],[132,615],[132,400]
 slab(MAIN,M.main,.01); slab(ENTR,M.entr,.01); slab(TERR,M.terr,0);
 slab(PRIVE,M.prive,0);
 slab([[380,562],[408,562],[408,612],[380,612]],M.floor,0);           // small exit lobby, south-west
-// gallery and void north of the room, where the escalators arrive
-slab([[385,138],[448,76],[580,76],[643,138],[643,196],[385,196]],M.voidM,-.03);
 document.getElementById('lg-prive').textContent='≈ '+Math.round(area(PRIVE)/5)*5+' m²';
 
 /* ---------- walls ---------- */
@@ -257,8 +259,8 @@ function ramp(x0,z0,x1,z1,rise,dir){ // dir: +1 rises towards larger z, -1 towar
   const w=(x1-x0)/S, l=(z1-z0)/S, len=Math.hypot(l,rise);
   const o=new THREE.Mesh(new THREE.BoxGeometry(w,.25,len),M.steel); o.position.set(mx((x0+x1)/2),rise/2,mz((z0+z1)/2)); o.rotation.x=-dir*Math.atan2(rise,l); o.castShadow=true; scene.add(o);
   [-1,1].forEach(sd=>{ const r=new THREE.Mesh(new THREE.BoxGeometry(.08,.9,len),M.glass); r.position.set(mx((x0+x1)/2)+sd*w/2,rise/2+.5,mz((z0+z1)/2)); r.rotation.x=o.rotation.x; scene.add(r); }); }
-ramp(529,80,548,206,3.6,-1); ramp(552,80,571,206,3.6,-1);     // escalator pair arriving from the gallery
-ramp(608,522,627,600,3.2,1); ramp(630,522,649,600,3.2,1);     // escalator pair, south passage
+ramp(529,84,548,204,LOWER,-1); ramp(552,84,571,204,LOWER,-1);   // escalator pair coming up from the level below, north side
+ramp(608,522,627,600,LOWER,1); ramp(630,522,649,600,LOWER,1);   // escalator pair coming up from the level below, south passage
 for(let i=0;i<8;i++) rectBox(656,490+i*4.4,700,494.4+i*4.4,.17*(i+1),M.steel);   // stairs beside the south passage
 
 /* ---------- ceiling-height zones marked on the plan ---------- */
@@ -282,8 +284,8 @@ say('MC5',745,440,3.5,{size:.7});
 say('MC1',505,565,3.6,{size:.9});
 say('MC2 · WC',880,200,3.6,{size:.9});
 say('WC',678,600,3.6,{size:.7});
-say('Escalators',550,150,4.4,{size:.8,bg:'#17a34a',fg:'#ffffff'});
-say('Escalators',628,560,4,{size:.7,bg:'#17a34a',fg:'#ffffff'});
+say('Escalators up to Indigo',550,150,1.6,{size:.8,bg:'#17a34a',fg:'#ffffff'});
+say('Escalators up to Indigo',628,565,1.4,{size:.6,bg:'#17a34a',fg:'#ffffff'});
 say('Entrance',757,80,3.5,{size:.8,bg:'#17a34a',fg:'#ffffff'});
 say('Entrance',800,322,3.5,{size:.7,bg:'#17a34a',fg:'#ffffff'});
 say('Terrace doors',285,505,3.1,{size:.7});
