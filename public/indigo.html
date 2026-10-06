@@ -214,8 +214,8 @@ wall(653,490,653,520); wall(603,482,603,520); wall(585,482,603,482);
 /* ---------- blocks: kitchen, office bar and lift cores ---------- */
 rectBox(406,410,585,482,H,M.office);                                     // Office Bar 1, kitchen, reserve (52 m2, includes the 8.5 m2 cold room)
 // triangular enclosure beside the entrance area: walls only, open to above (no roof)
-slab([[648,276],[726,344],[648,414]],M.ctx,.01);
-wall(648,276,648,414,M.core,H,.3); wall(648,276,726,344,M.core,H,.3); wall(726,344,648,414,M.core,H,.3);
+slab([[648,276],[726,344],[648,414]],M.floor,.01);   // light floor inside, so it reads as open from above
+wall(648,276,648,414,M.core,H,.2); wall(648,276,726,344,M.core,H,.2); wall(726,344,648,414,M.core,H,.2);
 solid([[726,344],[762,356],[736,392],[730,405],[708,428],[676,440],[665,465],[653,465],[653,414]],H,M.office);   // Office Bar 2 (27 m2)
 solid([[762,356],[790,343],[798,398],[742,470],[700,490],[653,490],[653,465],[665,465],[676,440],[708,428],[730,405],[736,392]],H,M.core);   // MC5a, MC5b lifts
 rectBox(410,492,598,645,H,M.core);                                       // MC1 lift core
