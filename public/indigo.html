@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{box-sizing:border-box}body{margin:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif}[hidden]{display:none!important}</style>
+<title>Board 2027 Indigo Floorplan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D hall; drawing-sheet title block top-left, legend top-right, view + layer controls docked at the bottom */
+:root{
+  --bg:#e7e9e4; --panel:rgba(250,250,247,.92); --fg:#1d2321; --muted:#5d6661; --line:#c9cdc6;
+  --accent:#e2621b; --accent-ink:#fff; --feature:#c9bfd8; --avail:#ffffff;
+  --scene-bg:#14213d; --scene-floor:#cfd3cc; --scene-wall:#b9beb6; --sold:#24432f; --res:#f2c14e;
+  --display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
+  --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141817; --panel:rgba(28,33,31,.9); --fg:#e8ebe6; --muted:#9aa39d; --line:#39413d;
+  --accent:#f07a35; --accent-ink:#1a0d04; --feature:#7d6f95; --avail:#e9ebe6;
+  --scene-bg:#14213d; --scene-floor:#2b3130; --scene-wall:#3c4441; --sold:#6fa07f; --res:#f2c14e; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#141817; --panel:rgba(28,33,31,.9); --fg:#e8ebe6; --muted:#9aa39d; --line:#39413d;
+  --accent:#f07a35; --accent-ink:#1a0d04; --feature:#7d6f95; --avail:#e9ebe6;
+  --scene-bg:#14213d; --scene-floor:#2b3130; --scene-wall:#3c4441; --sold:#6fa07f; --res:#f2c14e; color-scheme:dark }
+html,body{height:100%}
+body{background:var(--scene-bg);color:var(--fg);font-family:var(--body);overflow:hidden}
+#stage{position:fixed;inset:0}
+#stage canvas{display:block;touch-action:none}
+.ui{position:fixed;inset:0;pointer-events:none;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;flex-direction:column;justify-content:space-between;gap:12px}
+.ui > *{pointer-events:auto}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;pointer-events:none}
+.top > *{pointer-events:auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.sheet{padding:12px 16px 12px;min-width:0}
+.sheet h1{font-family:var(--display);font-weight:700;font-size:28px;line-height:1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sheet h1 span{color:var(--muted);font-weight:500}
+.sheet p{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.sheet .issue{font-family:var(--mono);font-size:11px;margin-top:8px;color:var(--muted)}
+.legend{padding:10px 14px;display:grid;gap:6px;font-size:13px}
+.legend div{display:flex;align-items:center;gap:8px}
+.sw{width:14px;height:14px;border:1px solid var(--muted);flex:none;border-radius:2px}
+.sw.av{background:var(--avail)}
+.sw.ft{background:var(--feature)}
+.sw.sd{background:var(--sold);border-color:var(--sold)}
+.sw.rs{background:var(--res);border-color:var(--res)}
+.sw.mk{border:2px solid var(--accent);background:transparent}
+.legend b{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+.bottom{display:flex;gap:12px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;pointer-events:none}
+.bottom > *{pointer-events:auto}
+.controls{padding:8px;display:flex;flex-direction:column;gap:8px;max-width:100%;min-width:0}
+.row{display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.row .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:0 6px 0 4px;flex:none;width:52px}
+button{font:500 13px var(--body);color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:4px;padding:6px 11px;cursor:pointer;white-space:nowrap;flex:none}
+button:hover{border-color:var(--muted)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.views button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.hint{font-size:12px;color:var(--muted);padding:2px 6px 0}
+#loading[hidden]{display:none}
+#loading{position:fixed;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:13px;color:#c8d0e0}
+#auth{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#auth button{padding:3px 8px;font-size:12px}
+#auth form{margin:0}
+
+.maps{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.maps a{font:500 12px var(--body);color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:4px;padding:3px 8px}
+.maps a[aria-current="page"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.maps a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sw.in{background:#e3d6bd}.sw.pr{background:#b9a8d6}.sw.sv{background:#8a918a}.sw.gl{background:#9fc3cf}
+@media (max-width:640px){.sheet h1{font-size:22px}.legend{font-size:12px}.controls{width:100%}.hint{display:none}}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="loading">Building Indigo…</div>
+
+<div class="ui">
+  <div class="top">
+    <header class="panel sheet">
+      <h1>Indigo <span>· Board 2027</span></h1>
+      <p>Grimaldi Forum Monaco · 22–24 March 2027</p>
+      <div class="issue">Traced from the venue plan · scale estimated, about ±15%</div>
+      <nav class="maps" aria-label="Maps"><a href="/">Exhibition hall</a><a href="/indigo.html" aria-current="page">Indigo</a></nav>
+      <div class="issue" id="auth"><form method="post" action="/api/logout"><button type="submit">Sign out</button></form></div>
+    </header>
+    <div class="panel legend" aria-label="Legend">
+      <div><span class="sw in"></span>Indigo floor <b id="lg-area">–</b></div>
+      <div><span class="sw pr"></span>Privé room <b id="lg-prive">–</b></div>
+      <div><span class="sw sv"></span>Kitchen, offices, lifts, WCs</div>
+      <div><span class="sw gl"></span>Glazed walls and doors</div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div></div>
+    <div class="panel controls">
+      <div class="row views" role="group" aria-label="Camera views">
+        <span class="lbl">View</span>
+        <button id="v-overview" class="on">Overview</button>
+        <button id="v-plan">Plan</button>
+        <button id="v-arrival">From the escalators</button>
+        <button id="v-bar">Bar</button>
+        <button id="v-screen">Screen</button>
+      </div>
+      <div class="row" role="group" aria-label="Layers">
+        <span class="lbl">Show</span>
+        <button id="t-labels" class="on" aria-pressed="true">Labels</button>
+        <button id="t-ceil" class="on" aria-pressed="true">Ceiling zones</button>
+      </div>
+      <div class="hint">Drag to orbit · scroll or pinch to zoom · right-drag to pan</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+"use strict";
+if(!window.THREE){document.getElementById('loading').textContent='3D library failed to load. Reload the page to try again.';return;}
+
+/* units: plan pixels -> metres. Scale estimated from the 6.6 m column grid (70 px) */
+const S=10.6, OX=490, OY=330;
+const mx=px=>(px-OX)/S, mz=py=>(py-OY)/S;
+
+const host=document.getElementById('stage');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(host.clientWidth,host.clientHeight);
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+renderer.domElement.setAttribute('role','img');
+renderer.domElement.setAttribute('aria-label','3D model of the Indigo level: main room with bar, kitchen block, Privé room, escalators and entrances.');
+
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x14213d);
+const camera=new THREE.PerspectiveCamera(45,host.clientWidth/host.clientHeight,0.1,500);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08; controls.maxPolarAngle=Math.PI/2-0.03; controls.minDistance=1.5; controls.maxDistance=260;
+scene.add(new THREE.HemisphereLight(0xffffff,0x7c817b,0.55));
+const sun=new THREE.DirectionalLight(0xfff4e6,0.5); sun.position.set(-12,70,18); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-45,right:50,top:40,bottom:-40,near:1,far:160}); sun.shadow.bias=-0.0005; scene.add(sun);
+
+const mat=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.9},o||{}));
+const M={floor:mat(0xe3d6bd),prive:mat(0xb9a8d6),ctx:mat(0x59615d),wall:mat(0xf2f1ec,{roughness:.7}),core:mat(0x8a918a),dark:mat(0x1b1e22,{roughness:.6}),
+  glass:mat(0x9fc3cf,{transparent:true,opacity:.32,roughness:.1,metalness:.1}),pillar:mat(0x151716,{roughness:.6}),oak:mat(0xb08455,{roughness:.6}),
+  steel:mat(0x8b9196,{metalness:.4,roughness:.4}),voidM:mat(0x0c1426,{roughness:1}),zone:new THREE.MeshBasicMaterial({color:0xe2621b,transparent:true,opacity:.5})};
+const H=2.8, T=.18;
+
+function label(text,{size=1,bg='rgba(255,255,255,.92)',fg='#1d2321',weight=600}={}){
+  const c=document.createElement('canvas'), g=c.getContext('2d'); const fs=64;
+  g.font=`${weight} ${fs}px Archivo, Arial, sans-serif`; const w=Math.ceil(g.measureText(text).width)+48; c.width=w; c.height=fs+36;
+  g.font=`${weight} ${fs}px Archivo, Arial, sans-serif`;
+  if(bg){g.fillStyle=bg; const r=18,h=c.height; g.beginPath(); g.moveTo(r,0);g.lineTo(w-r,0);g.quadraticCurveTo(w,0,w,r);g.lineTo(w,h-r);g.quadraticCurveTo(w,h,w-r,h);g.lineTo(r,h);g.quadraticCurveTo(0,h,0,h-r);g.lineTo(0,r);g.quadraticCurveTo(0,0,r,0);g.fill();}
+  g.fillStyle=fg; g.textBaseline='middle'; g.textAlign='center'; g.fillText(text,w/2,c.height/2+2);
+  const tex=new THREE.CanvasTexture(c); tex.encoding=THREE.sRGBEncoding; tex.anisotropy=4;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthWrite:false})); sp.scale.set(size*w/c.height,size,1); sp.renderOrder=10; return sp;
+}
+const labels=new THREE.Group(); scene.add(labels);
+const say=(t,px,py,y,o)=>{const s=label(t,o); s.position.set(mx(px),y,mz(py)); labels.add(s); return s;};
+
+/* helpers working in plan pixels */
+function slab(pts,m,y){ // flat floor polygon
+  const sh=new THREE.Shape(pts.map(([x,z])=>new THREE.Vector2(mx(x),-mz(z)))); const g=new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI/2);
+  const o=new THREE.Mesh(g,m); o.position.y=y||0; o.receiveShadow=true; scene.add(o); return o; }
+function solid(pts,h,m){ // extruded block
+  const sh=new THREE.Shape(pts.map(([x,z])=>new THREE.Vector2(mx(x),-mz(z)))); const g=new THREE.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false}); g.rotateX(-Math.PI/2);
+  const o=new THREE.Mesh(g,m); o.castShadow=true; o.receiveShadow=true; scene.add(o); return o; }
+function wall(x1,z1,x2,z2,m,h,t){ // wall between two plan points
+  const a=new THREE.Vector3(mx(x1),0,mz(z1)), b=new THREE.Vector3(mx(x2),0,mz(z2)), L=a.distanceTo(b); h=h||H;
+  const o=new THREE.Mesh(new THREE.BoxGeometry(L+(t||T),h,t||T),m||M.wall); o.position.set((a.x+b.x)/2,h/2,(a.z+b.z)/2); o.rotation.y=-Math.atan2(b.z-a.z,b.x-a.x);
+  o.castShadow=m!==M.glass; o.receiveShadow=true; scene.add(o); return o; }
+function rectBox(x0,z0,x1,z1,h,m,y){ const o=new THREE.Mesh(new THREE.BoxGeometry((x1-x0)/S,h,(z1-z0)/S),m); o.position.set(mx((x0+x1)/2),(y||0)+h/2,mz((z0+z1)/2)); o.castShadow=true; o.receiveShadow=true; scene.add(o); return o; }
+const area=pts=>Math.abs(pts.reduce((t,[x,z],i)=>{const [x2,z2]=pts[(i+1)%pts.length]; return t+x*z2-x2*z;},0))/2/(S*S);
+
+/* ---------- floors ---------- */
+// main Indigo room, including the entrance corridor (north-east) and the passage to the south escalators
+const ROOM=[[224,204],[725,204],[725,63],[786,63],[786,343],[733,343],[653,272],[653,520],[603,520],[603,482],[585,482],[585,410],[408,410],[408,562],[370,562],[224,418]];
+const PRIVE=[[232,52],[302,52],[302,204],[232,204]];
+slab([[150,30],[980,30],[980,650],[150,650]],M.ctx,-.06);            // surrounding building, for context
+slab(ROOM,M.floor,0);
+slab(PRIVE,M.prive,0);
+slab([[380,562],[408,562],[408,612],[380,612]],M.floor,0);           // small exit lobby, south-west
+// gallery and void north of the room, where the escalators arrive
+slab([[385,138],[448,76],[580,76],[643,138],[643,196],[385,196]],M.voidM,-.03);
+document.getElementById('lg-area').textContent='≈ '+Math.round(area(ROOM)/10)*10+' m²';
+document.getElementById('lg-prive').textContent='≈ '+Math.round(area(PRIVE)/5)*5+' m²';
+
+/* ---------- walls ---------- */
+// north wall, with the opening where the escalators land
+wall(314,204,527,204); wall(572,204,719,204);
+// Privé room
+wall(232,52,308,52); wall(232,52,232,204); wall(308,52,308,204,M.wall,H,.5); wall(232,204,256,204); wall(298,204,308,204);
+// entrance corridor (north-east)
+wall(719,63,719,204,M.wall,H,.5); wall(725,63,750,63); wall(750,63,782,63,M.glass); wall(786,97,786,300,M.wall,H,.5); wall(786,63,786,97,M.glass);
+wall(733,343,786,343);
+// glazed west wall and diagonal terrace wall, with two double doors on the diagonal
+wall(224,204,224,418,M.glass);
+wall(224,418,370,562,M.glass);
+[[265,460],[328,524]].forEach(([x,z])=>{ const o=new THREE.Mesh(new THREE.BoxGeometry(2.2,2.3,.3),M.dark); o.position.set(mx(x),1.15,mz(z)); o.rotation.y=-Math.PI/4; scene.add(o); });
+wall(370,562,380,562); wall(380,562,380,612); wall(380,612,408,612,M.glass);
+// passage to the south escalators
+wall(653,490,653,520); wall(603,482,603,520); wall(585,482,603,482);
+
+/* ---------- blocks: kitchen, office bar and lift cores ---------- */
+rectBox(406,410,585,482,H,M.core);                                       // office, kitchen, reserve (with cold room)
+solid([[646,272],[656,272],[729,341],[790,341],[798,398],[742,470],[700,490],[646,490]],H,M.core);   // office bar, MC5a, MC5b
+rectBox(410,492,598,645,H,M.core);                                       // MC1 lift core
+rectBox(795,100,965,300,H,M.core);                                       // MC2 and WCs
+rectBox(655,555,700,645,H,M.core);                                       // WCs, south
+
+/* ---------- bar ---------- */
+const barTop=.12, barH=1.1;
+const bar=(x0,z0,x1,z1)=>{ rectBox(x0,z0,x1,z1,barH,M.dark); const t=rectBox(x0-1.5,z0-1.5,x1+1.5,z1+1.5,.05,M.oak,barH); t.castShadow=false; };
+bar(366,412,377,476);                 // long run facing the room
+bar(390,387,433,395);                 // return along the top
+bar(427,395,433,400);
+(function(){ const o=new THREE.Mesh(new THREE.BoxGeometry(2.7,barH,1.0),M.dark); o.position.set(mx(378),barH/2,mz(399)); o.rotation.y=Math.PI/4; o.castShadow=true; scene.add(o);
+  const t=new THREE.Mesh(new THREE.BoxGeometry(2.95,.05,1.25),M.oak); t.position.set(mx(378),barH+.025,mz(399)); t.rotation.y=Math.PI/4; scene.add(t); })();
+rectBox(396,420,403,476,.95,M.steel);  // back bar against the kitchen wall
+
+/* ---------- screen on the kitchen wall: 3.17 x 1.89 m ---------- */
+(function(){ const f=new THREE.Mesh(new THREE.BoxGeometry(3.37,2.05,.08),M.dark); f.position.set(mx(513),1.55,mz(410)-.06); scene.add(f);
+  const s=new THREE.Mesh(new THREE.PlaneGeometry(3.17,1.89),new THREE.MeshBasicMaterial({color:0x2a4a7a})); s.rotation.y=Math.PI; s.position.set(mx(513),1.55,mz(410)-.11); scene.add(s); })();
+
+/* ---------- columns on the 6.6 m diagonal grid ---------- */
+const COLS=[[232,204],[302,204],[442,204],[583,204],[725,204],[302,63],[442,63],[583,63],[725,63],[372,134],[654,134],[372,275],[513,275],[302,345],[442,345],[583,345],[232,417],[372,417],[302,487],[372,557],[653,275],[725,345],[653,415]];
+const cg=new THREE.CylinderGeometry(.3,.3,H,18), cols=new THREE.InstancedMesh(cg,M.pillar,COLS.length), tmp=new THREE.Object3D();
+COLS.forEach(([x,z],i)=>{tmp.position.set(mx(x),H/2,mz(z));tmp.updateMatrix();cols.setMatrixAt(i,tmp.matrix);}); cols.castShadow=true; scene.add(cols);
+
+/* ---------- escalators and stairs ---------- */
+function ramp(x0,z0,x1,z1,rise,dir){ // dir: +1 rises towards larger z, -1 towards smaller z
+  const w=(x1-x0)/S, l=(z1-z0)/S, len=Math.hypot(l,rise);
+  const o=new THREE.Mesh(new THREE.BoxGeometry(w,.25,len),M.steel); o.position.set(mx((x0+x1)/2),rise/2,mz((z0+z1)/2)); o.rotation.x=-dir*Math.atan2(rise,l); o.castShadow=true; scene.add(o);
+  [-1,1].forEach(sd=>{ const r=new THREE.Mesh(new THREE.BoxGeometry(.08,.9,len),M.glass); r.position.set(mx((x0+x1)/2)+sd*w/2,rise/2+.5,mz((z0+z1)/2)); r.rotation.x=o.rotation.x; scene.add(r); }); }
+ramp(529,80,548,206,3.6,-1); ramp(552,80,571,206,3.6,-1);     // escalator pair arriving from the gallery
+ramp(608,522,627,600,3.2,1); ramp(630,522,649,600,3.2,1);     // escalator pair, south passage
+for(let i=0;i<8;i++) rectBox(656,490+i*4.4,700,494.4+i*4.4,.17*(i+1),M.steel);   // stairs beside the south passage
+
+/* ---------- ceiling-height zones marked on the plan ---------- */
+const zones=new THREE.Group(); scene.add(zones);
+function zone(x0,z0,x1,z1){ const t=.12; [[x0,z0,x1,z0],[x0,z1,x1,z1],[x0,z0,x0,z1],[x1,z0,x1,z1]].forEach(([a,b,c,d])=>{
+  const o=new THREE.Mesh(new THREE.BoxGeometry(Math.abs(c-a)/S+t,.02,Math.abs(d-b)/S+t),M.zone); o.position.set(mx((a+c)/2),.02,mz((b+d)/2)); zones.add(o); }); }
+zone(258,262,318,360); zone(452,285,575,400);
+const zl=[say('Ceiling 2.68 m',288,311,.5,{size:.7,bg:null,fg:'#7a3410'}),say('Ceiling 2.92 m',513,330,.5,{size:.7,bg:null,fg:'#7a3410'}),say('Ceiling 2.60 m',600,235,.5,{size:.7,bg:null,fg:'#7a3410'}),say('Ceiling 2.46 m',395,512,.5,{size:.7,bg:null,fg:'#7a3410'})];
+
+/* ---------- labels ---------- */
+say('Indigo',460,250,4.2,{size:2,bg:'#1d2321',fg:'#ffffff'});
+say('Privé',267,125,3.8,{size:1.2});
+say('Bar',395,440,2.2,{size:1.1,bg:'#1d2321',fg:'#ffffff'});
+say('Office · kitchen · reserve',495,446,3.7,{size:1});
+say('Screen 3.17 × 1.89 m',513,400,3.3,{size:.8});
+say('Office bar · MC5',715,420,3.7,{size:1});
+say('MC1',505,565,3.7,{size:1.1});
+say('MC2 · WC',880,200,3.7,{size:1.1});
+say('WC',678,600,3.7,{size:.9});
+say('Escalators',550,150,4.6,{size:1,bg:'#17a34a',fg:'#ffffff'});
+say('Escalators',628,560,4.2,{size:.9,bg:'#17a34a',fg:'#ffffff'});
+say('Entrance',757,85,3.6,{size:1,bg:'#17a34a',fg:'#ffffff'});
+say('Entrance',775,322,3.6,{size:.9,bg:'#17a34a',fg:'#ffffff'});
+say('Terrace doors',285,505,3.2,{size:.9});
+
+/* ---------- views ---------- */
+const VIEWS={
+  overview:{p:[-22,36,40],t:[0,0,2]},
+  plan:{p:[2,230,.01],t:[2,0,0],fov:17},
+  arrival:{p:[mx(550),1.7,mz(212)],t:[mx(500),1.3,mz(400)]},
+  bar:{p:[mx(300),1.7,mz(380)],t:[mx(385),1.1,mz(435)]},
+  screen:{p:[mx(513),1.7,mz(300)],t:[mx(513),1.5,mz(410)]}
+};
+let anim=null;
+function goView(n){ const v=VIEWS[n]; anim={t0:performance.now(),dur:matchMedia('(prefers-reduced-motion: reduce)').matches?1:1100,fp:camera.position.clone(),ft:controls.target.clone(),tp:new THREE.Vector3(...v.p),tt:new THREE.Vector3(...v.t),ff:camera.fov,tf:v.fov||45};
+  document.querySelectorAll('.views button').forEach(b=>b.classList.toggle('on',b.id==='v-'+n)); }
+Object.keys(VIEWS).forEach(k=>document.getElementById('v-'+k).addEventListener('click',()=>goView(k)));
+camera.position.set(...VIEWS.overview.p); controls.target.set(...VIEWS.overview.t); controls.update();
+controls.addEventListener('start',()=>{anim=null;});
+function toggle(id,fn){const b=document.getElementById(id);b.addEventListener('click',()=>{const on=!b.classList.contains('on');b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);fn(on);});}
+toggle('t-labels',on=>{labels.visible=on;});
+toggle('t-ceil',on=>{zones.visible=on; zl.forEach(s=>{s.visible=on;});});
+
+function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
+window.addEventListener('resize',resize);
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+function tick(now){
+  if(anim){const k=Math.min(1,(now-anim.t0)/anim.dur),e=ease(k); camera.position.lerpVectors(anim.fp,anim.tp,e); controls.target.lerpVectors(anim.ft,anim.tt,e); camera.fov=anim.ff+(anim.tf-anim.ff)*e; camera.updateProjectionMatrix(); if(k>=1)anim=null;}
+  controls.update(); renderer.render(scene,camera); requestAnimationFrame(tick);
+}
+document.getElementById('loading').hidden=true;
+window.__indigo={scene,area:area(ROOM),prive:area(PRIVE)};
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

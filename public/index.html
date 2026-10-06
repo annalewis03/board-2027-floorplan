@@ -104,6 +104,10 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
   .hint{display:none}
 }
 
+.maps{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.maps a{font:500 12px var(--body);color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:4px;padding:3px 8px}
+.maps a[aria-current="page"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.maps a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #auth{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #auth button{padding:3px 8px;font-size:12px}
 #auth form{margin:0}
@@ -137,6 +141,7 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
       <p>Grimaldi Forum Monaco · 22–24 March 2027</p>
       <div class="issue">Plan dated 30 Sep 2026 · 1 grid square = 3 m</div>
       <div class="issue" id="conn" role="status"></div>
+      <nav class="maps" aria-label="Maps"><a href="/" aria-current="page">Exhibition hall</a><a href="/indigo.html">Indigo</a></nav>
       <div class="issue" id="auth">
         <span id="auth-who"></span>
         <button type="button" id="users-btn" aria-expanded="false" aria-controls="users" hidden>Access</button>
