@@ -105,7 +105,8 @@ button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
         <button id="v-overview" class="on">Overview</button>
         <button id="v-plan">Plan</button>
         <button id="v-arrival">From the escalators</button>
-        <button id="v-bar">Bar</button>
+        <button id="v-bar">Bar 1</button>
+        <button id="v-bar2">Bar 2</button>
         <button id="v-screen">Screen</button>
       </div>
       <div class="row" role="group" aria-label="Layers">
@@ -137,7 +138,7 @@ renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 host.appendChild(renderer.domElement);
 renderer.domElement.setAttribute('role','img');
-renderer.domElement.setAttribute('aria-label','3D model of the Indigo level: main room with bar, kitchen block, Privé room, escalators and entrances.');
+renderer.domElement.setAttribute('aria-label','3D model of the Indigo level: main room with two bars, kitchen block, Privé room, escalators and entrances.');
 
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x14213d);
 const camera=new THREE.PerspectiveCamera(45,host.clientWidth/host.clientHeight,0.1,500);
@@ -213,9 +214,19 @@ wall(653,490,653,520); wall(603,482,603,520); wall(585,482,603,482);
 
 /* ---------- blocks: kitchen, office bar and lift cores ---------- */
 rectBox(406,410,585,482,H,M.office);                                     // Office Bar 1, kitchen, reserve (52 m2, includes the 8.5 m2 cold room)
-// triangular enclosure beside the entrance area: walls only, open to above (no roof)
-slab([[648,276],[726,344],[648,414]],M.floor,.01);   // light floor inside, so it reads as open from above
-wall(648,276,648,414,M.core,H,.2); wall(648,276,726,344,M.core,H,.2); wall(726,344,648,414,M.core,H,.2);
+// Bar 2: triangular bar beside the entrance area, serving the main room (west) and the entrance area (north-east),
+// with its back bar against Office Bar 2. Open above, no roof.
+slab([[648,276],[726,344],[648,414]],M.floor,.01);
+wall(726,344,648,414,M.core,H,.2);                                       // back wall shared with Office Bar 2
+function barRun(x1,z1,x2,z2,inset){ // counter between two plan points, shortened at both ends so it clears the columns
+  const a=new THREE.Vector3(mx(x1),0,mz(z1)), b=new THREE.Vector3(mx(x2),0,mz(z2)), L=a.distanceTo(b)-(inset||0)*2, ry=-Math.atan2(b.z-a.z,b.x-a.x);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(L,1.1,.6),M.dark); body.position.set((a.x+b.x)/2,.55,(a.z+b.z)/2); body.rotation.y=ry; body.castShadow=true; scene.add(body);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(L+.1,.05,.8),M.oak); top.position.set((a.x+b.x)/2,1.125,(a.z+b.z)/2); top.rotation.y=ry; scene.add(top); }
+barRun(648,276,648,414,.55);                                             // counter facing the main room
+barRun(648,276,726,344,.55);                                             // counter facing the entrance area
+(function(){ // back bar: low steel unit just inside the back wall
+  const a=new THREE.Vector3(mx(712),0,mz(346)), b=new THREE.Vector3(mx(660),0,mz(393));
+  const o=new THREE.Mesh(new THREE.BoxGeometry(a.distanceTo(b),.95,.5),M.steel); o.position.set((a.x+b.x)/2,.475,(a.z+b.z)/2); o.rotation.y=-Math.atan2(b.z-a.z,b.x-a.x); o.castShadow=true; scene.add(o); })();
 solid([[726,344],[762,356],[736,392],[730,405],[708,428],[676,440],[665,465],[653,465],[653,414]],H,M.office);   // Office Bar 2 (27 m2)
 solid([[762,356],[790,343],[798,398],[742,470],[700,490],[653,490],[653,465],[665,465],[676,440],[708,428],[730,405],[736,392]],H,M.core);   // MC5a, MC5b lifts
 rectBox(410,492,598,645,H,M.core);                                       // MC1 lift core
@@ -262,7 +273,8 @@ say('Indigo · 505 m²',440,300,3.8,{size:1.5,bg:'#1d2321',fg:'#ffffff'});
 say('Entrance area · 115 m²',730,235,3.6,{size:.85});
 say('Terrace · 313 m²',170,430,1.6,{size:1});
 say('Privé',267,125,3.6,{size:.9});
-say('Bar',386,440,2.1,{size:.8,bg:'#1d2321',fg:'#ffffff'});
+say('Bar 1',386,440,2.1,{size:.8,bg:'#1d2321',fg:'#ffffff'});
+say('Bar 2',672,345,2.1,{size:.8,bg:'#1d2321',fg:'#ffffff'});
 say('Office Bar 1 · kitchen · reserve · 52 m²',495,446,3.6,{size:.75});
 say('Screen 3.17 × 1.89 m',513,400,3.2,{size:.6});
 say('Office Bar 2 · 27 m²',705,395,3.6,{size:.7});
@@ -282,6 +294,7 @@ const VIEWS={
   plan:{p:[1,190,.01],t:[1,0,0],fov:17},
   arrival:{p:[mx(550),1.7,mz(212)],t:[mx(500),1.3,mz(400)]},
   bar:{p:[mx(300),1.7,mz(380)],t:[mx(385),1.1,mz(435)]},
+  bar2:{p:[mx(545),2.2,mz(255)],t:[mx(672),1.0,mz(345)]},
   screen:{p:[mx(513),1.7,mz(300)],t:[mx(513),1.5,mz(410)]}
 };
 let anim=null;
