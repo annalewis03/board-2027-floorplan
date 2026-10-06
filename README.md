@@ -9,6 +9,7 @@ in. The owner can create a personal login for each person, as view-only or as an
 |---|---|
 | `public/index.html` | The whole page (3D hall, editor, stand list) |
 | `public/indigo.html` | A second 3D map: the Indigo level (room shell only, no stands yet) |
+| `public/guelfe-genois.html` | A third 3D map: Le Guelfe and Le Genois together (room shells only) |
 | `netlify/edge-functions/lock.js` | The lock on the whole site: shows the sign-in page until someone is signed in |
 | `netlify/functions/api.mjs` | Server code: sign-in, personal logins, saved bookings, Claude |
 | `netlify.toml`, `package.json` | Settings Netlify reads when it builds the site |
